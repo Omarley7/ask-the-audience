@@ -144,12 +144,24 @@ button.gold {
   grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
 }
-@media (max-width:560px){
-  .biggrid { grid-template-columns: 1fr; }
-  .option { font-size:1.2rem; padding:1.1rem; }
-  header h1 { font-size:1.2rem; text-align:center; }
-  .container { padding:.75rem; }
-  button { padding:.7rem .9rem; }
+@media (max-width: 560px) {
+  .biggrid {
+    grid-template-columns: 1fr;
+  }
+  .option {
+    font-size: 1.2rem;
+    padding: 1.1rem;
+  }
+  header h1 {
+    font-size: 1.2rem;
+    text-align: center;
+  }
+  .container {
+    padding: 0.75rem;
+  }
+  button {
+    padding: 0.7rem 0.9rem;
+  }
 }
 .option {
   font-size: 1.4rem;

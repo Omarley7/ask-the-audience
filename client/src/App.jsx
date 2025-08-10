@@ -4,9 +4,12 @@ export default function App() {
   return (
     <>
       <header>
-        <div className="icon" aria-hidden>💍❤️</div>
+        <div className="icon" aria-hidden>
+          💍❤️
+        </div>
         <h1 style={{ margin: 0 }}>
-          Spørg Publikum <span style={{ color: "var(--gold)" }}>Bryllupsspecial</span>
+          Spørg Publikum{" "}
+          <span style={{ color: "var(--gold)" }}>Bryllupsspecial</span>
         </h1>
       </header>
       <div className="container">

@@ -99,10 +99,10 @@ export default function AudienceView() {
       )}
       {hasVoted && (
         <p className="lock">
-          Du valgte <b>{choice ?? "…"}</b>. Tak! Din stemme er låst for denne runde ✨
+          Du valgte <b>{choice ?? "…"}</b>. Tak! Din stemme er låst for denne
+          runde ✨
         </p>
       )}
-
       <div className="biggrid" role="group" aria-label="Answer options">
         {["A", "B", "C", "D"].map((k) => (
           <button
@@ -113,8 +113,8 @@ export default function AudienceView() {
             aria-disabled={disabled}
             title={
               disabled
-    ? "Afventer åben afstemning eller du har allerede stemt"
-    : `Vælg ${k}`
+                ? "Afventer åben afstemning eller du har allerede stemt"
+                : `Vælg ${k}`
             }
             accessKey={k.toLowerCase()}
           >
@@ -122,10 +122,6 @@ export default function AudienceView() {
           </button>
         ))}
       </div>
-
-      <p style={{ marginTop: "1rem", color: "var(--muted)" }}>
-  Tip: Du kan bruge tastaturet: <b>A</b>/<b>B</b>/<b>C</b>/<b>D</b> når afstemningen er åben.
-      </p>
     </div>
   );
 }
