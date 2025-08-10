@@ -1,0 +1,17 @@
+{
+  "name": "ask-the-audience-wedding",
+  "private": true,
+  "scripts": {
+    "postinstall": "npm --prefix client install",
+    "server": "node server/index.js",
+    "client": "npm --prefix client run dev",
+    "dev": "concurrently \"npm run server\" \"npm run client\""
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "qrcode": "^1.5.3",
+    "socket.io": "^4.7.5"
+  }
+}
