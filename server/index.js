@@ -7,6 +7,7 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 const QRCode = require("qrcode");
 const crypto = require("crypto");
+const path = require("path");
 
 const PORT = process.env.PORT || 3001;
 const ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
@@ -215,6 +216,11 @@ io.on("connection", (socket) => {
     }
   );
 });
+
+app.use(express.static(path.join(__dirname, "..", "client", "dist")));
+app.get("*", (_, res) =>
+  res.sendFile(path.join(__dirname, "..", "client", "dist", "index.html"))
+);
 
 server.listen(PORT, () => {
   console.log(`Spørg Publikum server kører på :${PORT}`);

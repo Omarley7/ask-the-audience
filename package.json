@@ -5,7 +5,8 @@
     "postinstall": "npm --prefix client install",
     "server": "node server/index.js",
     "client": "npm --prefix client run dev",
-    "dev": "concurrently \"npm run server\" \"npm run client\""
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "build": "npm --prefix client run build"
   },
   "dependencies": {
     "concurrently": "^8.2.2",
