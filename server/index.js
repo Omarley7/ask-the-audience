@@ -12,6 +12,13 @@ require("dotenv").config();
 
 const PORT = process.env.PORT || 3001;
 const ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+// Debug toggle (set DEBUG=1 or true to enable verbose socket logging)
+const DEBUG = ![undefined, "", "0", "false", "off"].includes(
+  (process.env.DEBUG || "").toLowerCase()
+);
+const dbg = (...args) => {
+  if (DEBUG) console.log(...args);
+};
 
 const app = express();
 app.use(cors({ origin: ORIGIN }));
@@ -109,11 +116,15 @@ app.post("/api/session", async (req, res) => {
 
 // ---- Socket.IO ----
 io.on("connection", (socket) => {
+  const ipAddr =
+    socket.handshake.headers["x-forwarded-for"] || socket.handshake.address;
+  dbg(`[conn] socket=${socket.id} ip=${ipAddr}`);
   const ip =
     socket.handshake.headers["x-forwarded-for"] || socket.handshake.address;
 
   // Host joins a room and gets immediate state
   socket.on("host:subscribe", ({ sessionId }) => {
+    dbg(`[host:subscribe] socket=${socket.id} session=${sessionId}`);
     const sess = sessions.get(sessionId);
     if (!sess) return;
     socket.join(`host:${sessionId}`);
@@ -122,6 +133,7 @@ io.on("connection", (socket) => {
 
   // Host controls
   socket.on("session:setVoting", ({ sessionId, votingOpen }) => {
+    dbg(`[session:setVoting] session=${sessionId} votingOpen=${votingOpen}`);
     const sess = sessions.get(sessionId);
     if (!sess) return;
     sess.votingOpen = !!votingOpen;
@@ -133,6 +145,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("session:reset", ({ sessionId }) => {
+    dbg(`[session:reset] session=${sessionId}`);
     const sess = sessions.get(sessionId);
     if (!sess) return;
     sess.roundId += 1;
@@ -147,6 +160,11 @@ io.on("connection", (socket) => {
 
   // Audience flow
   socket.on("audience:join", ({ sessionId, clientAck, sig }, ackCb) => {
+    dbg(
+      `[audience:join] socket=${socket.id} session=${sessionId} ack=${
+        clientAck ? clientAck.slice(0, 8) : "NEW"
+      }`
+    );
     if (!checkRate(ip, "join"))
       return ackCb && ackCb({ error: "rate_limited" });
     const sess = sessions.get(sessionId);
@@ -189,6 +207,14 @@ io.on("connection", (socket) => {
   socket.on(
     "audience:vote",
     ({ sessionId, roundId, option, clientAck, sig }, ackCb) => {
+      dbg(
+        `[audience:vote] socket=${
+          socket.id
+        } session=${sessionId} round=${roundId} option=${option} ack=${clientAck?.slice(
+          0,
+          8
+        )}`
+      );
       if (!checkRate(ip, "vote"))
         return ackCb && ackCb({ error: "rate_limited" });
       const sess = sessions.get(sessionId);
@@ -216,6 +242,9 @@ io.on("connection", (socket) => {
       ackCb && ackCb({ ok: true });
     }
   );
+  socket.on("disconnect", (reason) => {
+    dbg(`[disconnect] socket=${socket.id} reason=${reason}`);
+  });
 });
 
 app.use(express.static(path.join(__dirname, "..", "client", "dist")));
@@ -224,5 +253,7 @@ app.get("*", (_, res) =>
 );
 
 server.listen(PORT, () => {
-  console.log(`Spørg Publikum server kører på ${ORIGIN}:${PORT}`);
+  console.log(
+    `Spørg Publikum server kører på ${ORIGIN}:${PORT} (debug=${DEBUG})`
+  );
 });

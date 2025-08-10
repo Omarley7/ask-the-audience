@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import BarChart from "../components/BarChart.jsx";
 import Qr from "../components/Qr.jsx";
-import { socket } from "../socket.js";
+import { __DEBUG__, socket } from "../socket.js";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -33,8 +33,10 @@ export default function HostView() {
   // Subscribe as host for state updates
   useEffect(() => {
     if (!activeId) return;
+    if (__DEBUG__) console.log("[host] subscribe ->", activeId);
     socket.emit("host:subscribe", { sessionId: activeId });
     const onUpdate = (s) => {
+      if (__DEBUG__) console.log("[host] state:update", s);
       setState(s);
     };
     socket.on("state:update", onUpdate);
@@ -56,10 +58,16 @@ export default function HostView() {
   function toggleVoting(open) {
     if (!activeId) return;
     // optimistic update for snappier UI
+    if (__DEBUG__)
+      console.log("[host] toggleVoting emit", {
+        sessionId: activeId,
+        votingOpen: open,
+      });
     setState((prev) => ({ ...prev, votingOpen: open }));
     socket.emit("session:setVoting", { sessionId: activeId, votingOpen: open });
   }
   function resetRound() {
+    if (__DEBUG__) console.log("[host] resetRound emit", { sessionId });
     socket.emit("session:reset", { sessionId });
   }
 

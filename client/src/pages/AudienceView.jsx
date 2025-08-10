@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { socket } from "../socket.js";
+import { __DEBUG__, socket } from "../socket.js";
 
 function ackKey(sessionId) {
   return `ata:${sessionId}:ack`;
@@ -21,17 +21,33 @@ export default function AudienceView() {
 
   // Join on mount (or rejoin with existing ack)
   useEffect(() => {
+    if (__DEBUG__)
+      console.log("[aud][join] emitting audience:join", {
+        sessionId,
+        hadStoredAck: !!storedAck,
+      });
     socket.emit(
       "audience:join",
       { sessionId, clientAck: storedAck || undefined },
       (resp) => {
-        if (resp?.error) return; // could handle 'full'
+        if (__DEBUG__) console.log("[aud][join:ack] response", resp);
+        if (resp?.error) {
+          if (__DEBUG__) console.warn("[aud][join:error]", resp.error);
+          return; // could handle 'full'
+        }
         if (resp?.clientAck && !storedAck) {
+          if (__DEBUG__) console.log("[aud][join] storing new clientAck");
           localStorage.setItem(ackKey(sessionId), resp.clientAck);
         }
         setRoundId(resp.roundId);
         setVotingOpen(!!resp.votingOpen);
         setHasVoted(!!resp.hasVoted);
+        if (__DEBUG__)
+          console.log("[aud][state:init]", {
+            roundId: resp.roundId,
+            votingOpen: !!resp.votingOpen,
+            hasVoted: !!resp.hasVoted,
+          });
       }
     );
   }, [sessionId]);
@@ -39,13 +55,23 @@ export default function AudienceView() {
   // Live updates from host (voting open/close, round resets)
   useEffect(() => {
     function onAudState(msg) {
+      if (__DEBUG__) console.log("[aud][state:update] incoming", msg);
       if (msg?.roundId && msg.roundId !== roundId) {
+        if (__DEBUG__)
+          console.log("[aud][state:round] change", roundId, "->", msg.roundId);
         setRoundId(msg.roundId);
         // new round -> allow new vote
         setHasVoted(false);
         setChoice(null);
       }
       if (typeof msg?.votingOpen === "boolean") {
+        if (__DEBUG__)
+          console.log(
+            "[aud][state:votingOpen]",
+            votingOpen,
+            "->",
+            msg.votingOpen
+          );
         setVotingOpen(msg.votingOpen);
         if (!msg.votingOpen) {
           // when voting closes, keep hasVoted/choice; on new round reset local vote state
@@ -60,18 +86,30 @@ export default function AudienceView() {
   // Audience does not receive live round updates; their state gets refreshed on rejoin.
 
   function cast(option) {
-    if (!votingOpen) return;
+    if (!votingOpen) {
+      if (__DEBUG__)
+        console.log("[aud][vote] blocked: voting closed", { option });
+      return;
+    }
     const ok = window.confirm(`Lock in your choice: ${option}?`);
     if (!ok) return;
     const clientAck = localStorage.getItem(ackKey(sessionId));
+    if (__DEBUG__)
+      console.log("[aud][vote] emitting audience:vote", {
+        option,
+        roundId,
+        hasVoted,
+      });
     socket.emit(
       "audience:vote",
       { sessionId, roundId, option, clientAck },
       (resp) => {
+        if (__DEBUG__) console.log("[aud][vote:ack]", resp);
         if (resp?.ok) {
           setHasVoted(true);
           setChoice(option);
         } else if (resp?.error) {
+          if (__DEBUG__) console.warn("[aud][vote:error]", resp.error);
           alert(`Could not vote: ${resp.error}`);
         }
       }
