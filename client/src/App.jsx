@@ -4,16 +4,15 @@ export default function App() {
   return (
     <>
       <header>
-        <div className="icon">💍❤️</div>
+        <div className="icon" aria-hidden>💍❤️</div>
         <h1 style={{ margin: 0 }}>
-          Ask‑the‑Audience{" "}
-          <span style={{ color: "var(--gold)" }}>Wedding Edition</span>
+          Spørg Publikum <span style={{ color: "var(--gold)" }}>Bryllupsspecial</span>
         </h1>
       </header>
       <div className="container">
         <Outlet />
         <p style={{ textAlign: "center", opacity: 0.7, marginTop: "2rem" }}>
-          Built with Express + Socket.IO + React/Vite.
+          Bygget med Express, Socket.IO & React/Vite – med kærlighed 💛
         </p>
       </div>
     </>

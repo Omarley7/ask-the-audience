@@ -68,25 +68,25 @@ export default function HostView() {
   return (
     <div className="grid">
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>Session</h2>
+  <h2 style={{ marginTop: 0 }}>Værtspanel</h2>
         <div className="bgroup" style={{ marginBottom: "1rem" }}>
           {!state.votingOpen && (
             <button className="primary" onClick={() => toggleVoting(true)}>
-              Open voting
+              Åbn afstemning
             </button>
           )}
           {state.votingOpen && (
-            <button onClick={() => toggleVoting(false)}>Close voting</button>
+            <button onClick={() => toggleVoting(false)}>Luk afstemning</button>
           )}
           <button className="warn" onClick={resetRound}>
-            Next round
+            Næste runde
           </button>
         </div>
         <div className="status">
-          <span className="badge">Round #{state.roundId}</span>
+          <span className="badge">Runde #{state.roundId}</span>
           <span>•</span>
           <span className="badge">
-            {state.votingOpen ? "Voting OPEN" : "Voting CLOSED"}
+            {state.votingOpen ? "Afstemning ÅBEN" : "Afstemning LUKKET"}
           </span>
         </div>
 
@@ -100,11 +100,11 @@ export default function HostView() {
             }}
           >
             <div>
-              <div style={{ fontWeight: 700 }}>Session code</div>
+        <div style={{ fontWeight: 700 }}>Kode</div>
               <div className="copy">{sessionId ?? sess.sessionId ?? "..."}</div>
             </div>
             <div>
-              <div style={{ fontWeight: 700 }}>Join link</div>
+        <div style={{ fontWeight: 700 }}>Deltagerlink</div>
               <div
                 className="copy"
                 style={{ display: "flex", gap: ".5rem", alignItems: "center" }}
@@ -120,7 +120,7 @@ export default function HostView() {
                 <button
                   onClick={() => navigator.clipboard?.writeText(joinHref)}
                 >
-                  Copy
+          Kopiér
                 </button>
               </div>
             </div>
@@ -132,7 +132,7 @@ export default function HostView() {
       </div>
 
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>Live Tally</h2>
+  <h2 style={{ marginTop: 0 }}>Stemmer lige nu</h2>
         <BarChart tally={state.tally} />
       </div>
     </div>

@@ -90,17 +90,16 @@ export default function AudienceView() {
           gap: ".5rem",
         }}
       >
-        Make your choice <span className="badge">Round #{roundId}</span>
+        Vælg dit svar <span className="badge">Runde #{roundId}</span>
       </h2>
       {!votingOpen && (
         <p className="lock">
-          Voting is currently closed. Please wait for the host.
+          Afstemningen er ikke åben endnu – vær sød at vente et øjeblik 💕
         </p>
       )}
       {hasVoted && (
         <p className="lock">
-          You chose <b>{choice ?? "…"}</b>. Thanks! Your vote is locked for this
-          round.
+          Du valgte <b>{choice ?? "…"}</b>. Tak! Din stemme er låst for denne runde ✨
         </p>
       )}
 
@@ -114,8 +113,8 @@ export default function AudienceView() {
             aria-disabled={disabled}
             title={
               disabled
-                ? "Waiting for voting to open or already voted"
-                : `Choose ${k}`
+    ? "Afventer åben afstemning eller du har allerede stemt"
+    : `Vælg ${k}`
             }
             accessKey={k.toLowerCase()}
           >
@@ -125,7 +124,7 @@ export default function AudienceView() {
       </div>
 
       <p style={{ marginTop: "1rem", color: "var(--muted)" }}>
-        Tip: use keys <b>A</b>/<b>B</b>/<b>C</b>/<b>D</b> to vote when enabled.
+  Tip: Du kan bruge tastaturet: <b>A</b>/<b>B</b>/<b>C</b>/<b>D</b> når afstemningen er åben.
       </p>
     </div>
   );

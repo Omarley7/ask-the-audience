@@ -1,4 +1,4 @@
-export default function Qr({ dataUrl, alt = "Join QR" }) {
+export default function Qr({ dataUrl, alt = "QR til at deltage" }) {
   if (!dataUrl) return null;
   return (
     <img

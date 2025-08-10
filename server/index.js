@@ -217,5 +217,5 @@ io.on("connection", (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Ask-the-Audience server on :${PORT}`);
+  console.log(`Spørg Publikum server kører på :${PORT}`);
 });

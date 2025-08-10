@@ -21,7 +21,7 @@ export default function BarChart({ tally }) {
             </div>
             <div
               className="bar"
-              aria-label={`Option ${k} has ${v} votes (${pct}%)`}
+              aria-label={`Mulighed ${k} har ${v} stemmer (${pct}%)`}
             >
               <div className="fill" style={{ width: `${pct}%` }} />
             </div>
@@ -29,7 +29,7 @@ export default function BarChart({ tally }) {
         );
       })}
       <div className="labelrow">
-        <span>Total</span>
+        <span>I alt</span>
         <span className="badge">{total}</span>
       </div>
     </div>
