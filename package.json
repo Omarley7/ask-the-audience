@@ -6,7 +6,8 @@
     "server": "node server/index.js",
     "client": "npm --prefix client run dev",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "build": "npm --prefix client run build"
+    "build": "npm --prefix client run build",
+    "deploy": "yarn install && yarn --cwd client install && yarn --cwd client build"
   },
   "dependencies": {
     "concurrently": "^8.2.2",
