@@ -16,6 +16,19 @@ body,
 }
 body {
   margin: 0;
+
+  /* Landing layout mobile-first */
+  .landing {
+    padding: 1rem 1rem 3rem;
+  }
+  .landing .card {
+    border-radius: 16px;
+  }
+  @media (min-width: 600px) {
+    .landing {
+      padding-top: 2rem;
+    }
+  }
   background: radial-gradient(1200px 800px at 20% 0%, #121a3b, #0b1020);
   color: var(--text);
   font-family: Inter, system-ui, Segoe UI, Roboto, Arial, sans-serif;

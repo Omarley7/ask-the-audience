@@ -24,8 +24,24 @@ export default function HostView() {
       (async () => {
         const res = await fetch(`${API}/api/session`, { method: "POST" });
         const data = await res.json();
+        console.log("[host] created session", data);
         setSess(data);
         nav(`/host/${data.sessionId}`, { replace: true });
+      })();
+    } else if (sess.sessionId && !sess.qrDataUrl) {
+      console.log(
+        "[host] fetching QR code for existing session",
+        sess.sessionId
+      );
+      (async () => {
+        const r = await fetch(`${API}/api/session/${sess.sessionId}`);
+        if (r.ok) {
+          const data = await r.json();
+          if (__DEBUG__) console.log("[host] fetched existing session", data);
+          setSess(data);
+        } else if (__DEBUG__) {
+          console.warn("[host] failed to fetch session", r.status);
+        }
       })();
     }
   }, [sessionId]);
@@ -42,18 +58,6 @@ export default function HostView() {
     socket.on("state:update", onUpdate);
     return () => socket.off("state:update", onUpdate);
   }, [activeId]);
-
-  // Fetch QR & join link if navigated directly with existing sessionId (best-effort)
-  useEffect(() => {
-    (async () => {
-      if (sessionId && !sess.qrDataUrl) {
-        try {
-          // tiny helper: call session create endpoint ONLY if we don't already know joinUrl.
-          // In a real app we'd have a GET, but we're keeping API minimal; so skip here.
-        } catch {}
-      }
-    })();
-  }, [sessionId]);
 
   function toggleVoting(open) {
     if (!activeId) return;
@@ -91,51 +95,43 @@ export default function HostView() {
           </button>
         </div>
         <div className="status">
-          <span className="badge">Runde #{state.roundId}</span>
+          <span className="badge">{state.votingOpen ? "ÅBEN" : "LUKKET"}</span>
           <span>•</span>
-          <span className="badge">
-            {state.votingOpen ? "Afstemning ÅBEN" : "Afstemning LUKKET"}
-          </span>
+          <span className="badge">Runde #{state.roundId}</span>
         </div>
 
-        <div style={{ marginTop: "1rem" }} className="panel">
+        <div
+          style={{
+            marginTop: "1rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "1rem",
+            alignItems: "center",
+          }}
+          className="panel"
+        >
           <div
             style={{
               display: "flex",
               gap: "1rem",
               alignItems: "center",
-              flexWrap: "wrap",
+              flexWrap: "nowrap",
             }}
           >
             <div>
-              <div style={{ fontWeight: 700 }}>Kode</div>
               <div className="copy">{sessionId ?? sess.sessionId ?? "..."}</div>
             </div>
             <div>
-              <div style={{ fontWeight: 700 }}>Deltagerlink</div>
-              <div
-                className="copy"
-                style={{ display: "flex", gap: ".5rem", alignItems: "center" }}
+              <button
+                onClick={() => navigator.clipboard?.writeText(joinHref)}
+                title="Kopiér deltagerlinket til udklipsholderen"
+                style={{ flex: 1 }}
               >
-                <a
-                  className="link"
-                  href={joinHref}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {joinHref}
-                </a>
-                <button
-                  onClick={() => navigator.clipboard?.writeText(joinHref)}
-                >
-                  Kopiér
-                </button>
-              </div>
-            </div>
-            <div style={{ marginLeft: "auto" }}>
-              <Qr dataUrl={sess.qrDataUrl} />
+                Kopiér deltagerlink
+              </button>
             </div>
           </div>
+          <Qr dataUrl={sess.qrDataUrl} />
         </div>
       </div>
 

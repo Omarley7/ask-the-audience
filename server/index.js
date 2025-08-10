@@ -38,9 +38,9 @@ const io = new Server(server, {
  *  votesByRound: Record<number, {
  *    byAck: Record<string,'A'|'B'|'C'|'D'>,
  *    tally: {A:number;B:number;C:number;D:number}
- *  }>
- * }} Session
- */
+ *  }>,
+ *  qrDataUrl?: string
+ * }} Session */
 
 /** In-memory store */
 const sessions = new Map(); // Map<sessionId, Session>
@@ -111,7 +111,28 @@ app.post("/api/session", async (req, res) => {
     margin: 1,
     scale: 4,
   });
+  session.qrDataUrl = qrDataUrl;
   res.json({ sessionId, joinUrl: joinUrlPath, qrDataUrl });
+});
+
+// Fetch existing session (for refresh scenario)
+app.get("/api/session/:sessionId", async (req, res) => {
+  const { sessionId } = req.params;
+  const sess = sessions.get(sessionId);
+  if (!sess) return res.status(404).json({ error: "not_found" });
+  const joinUrlPath = `/join/${sessionId}`;
+  const fullJoinUrl = `${ORIGIN}${joinUrlPath}`;
+  if (!sess.qrDataUrl) {
+    try {
+      sess.qrDataUrl = await QRCode.toDataURL(fullJoinUrl, {
+        margin: 1,
+        scale: 4,
+      });
+    } catch (e) {
+      return res.status(500).json({ error: "qr_failed" });
+    }
+  }
+  res.json({ sessionId, joinUrl: joinUrlPath, qrDataUrl: sess.qrDataUrl });
 });
 
 // ---- Socket.IO ----
