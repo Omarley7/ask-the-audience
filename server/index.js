@@ -223,5 +223,5 @@ app.get("*", (_, res) =>
 );
 
 server.listen(PORT, () => {
-  console.log(`Spørg Publikum server kører på :${PORT}`);
+  console.log(`Spørg Publikum server kører på ${ORIGIN}:${PORT}`);
 });
