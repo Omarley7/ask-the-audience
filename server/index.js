@@ -8,6 +8,7 @@ const cors = require("cors");
 const QRCode = require("qrcode");
 const crypto = require("crypto");
 const path = require("path");
+require("dotenv").config();
 
 const PORT = process.env.PORT || 3001;
 const ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";

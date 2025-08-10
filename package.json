@@ -3,15 +3,15 @@
   "private": true,
   "scripts": {
     "postinstall": "npm --prefix client install",
-    "server": "node server/index.js",
+    "serve": "node server/index.js",
     "client": "npm --prefix client run dev",
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "build": "npm --prefix client run build",
-    "deploy": "yarn install && yarn --cwd client install && yarn --cwd client build"
+    "dev": "concurrently \"npm run serve\" \"npm run client\"",
+    "ci": "yarn install && yarn --cwd client install && yarn --cwd client build"
   },
   "dependencies": {
     "concurrently": "^8.2.2",
     "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
     "express": "^4.19.2",
     "qrcode": "^1.5.3",
     "socket.io": "^4.7.5"
