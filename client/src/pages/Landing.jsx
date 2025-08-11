@@ -64,6 +64,12 @@ export default function Landing() {
           </form>
         </div>
       </div>
+      <img
+        src="/logo.png"
+        alt=""
+        aria-hidden="true"
+        className="mx-auto mt-4 drop-shadow md:size-64"
+      />
     </div>
   );
 }
