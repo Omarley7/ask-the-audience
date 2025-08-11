@@ -17,10 +17,19 @@ const ORIGIN_PATTERNS = (process.env.CLIENT_ORIGINS || "http://localhost:5173")
   .filter(Boolean);
 
 // turn "https://*.myapp.com" into /^https:\/\/.*\.myapp\.com$/
+// If an env pattern ends with a trailing slash (e.g. "https://foo.bar/"), we treat that
+// slash as optional so both https://foo.bar and https://foo.bar/ are accepted.
 const toRegex = (p) => {
+  // Allow raw regex by wrapping with forward slashes: /^https?:\/\/foo$/
   if (p.startsWith("/") && p.endsWith("/")) return new RegExp(p.slice(1, -1));
+  let optionalSlash = false;
+  if (p.endsWith("/")) {
+    optionalSlash = true;
+    p = p.slice(0, -1); // drop the trailing slash; we'll add it back as optional
+  }
   const esc = p.replace(/\./g, "\\.").replace(/\*/g, ".*");
-  return new RegExp(`^${esc}$`);
+  const suffix = optionalSlash ? "(?:/)?" : "";
+  return new RegExp(`^${esc}${suffix}$`);
 };
 const ORIGIN_REGEXES = ORIGIN_PATTERNS.map(toRegex);
 const isAllowedOrigin = (origin) => {
