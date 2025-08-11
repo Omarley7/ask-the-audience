@@ -123,39 +123,46 @@ export default function AudienceView() {
       <h2 className="mb-2 flex items-center gap-2 text-xl font-semibold">
         Vælg dit svar <span className="badge">Runde #{roundId}</span>
       </h2>
-      {!votingOpen && (
-        <p className="text-gold font-bold">
-          Afstemningen er ikke åben endnu – vær sød at vente et øjeblik 💕
-        </p>
-      )}
-      {hasVoted && (
-        <p className="text-gold font-bold">
+      {hasVoted ? (
+        <p className="text-gold font-bold mb-2">
           Du valgte <b>{choice ?? "…"}</b>. Tak! Din stemme er låst for denne
           runde ✨
         </p>
+      ) : !votingOpen ? (
+        <p className="text-gold font-bold mb-2">
+          Afstemningen er ikke åben endnu
+        </p>
+      ) : (
+        <p className="text-gold font-bold mb-2">Afstemningen er åben 💕</p>
       )}
       <div
         className="grid grid-cols-2 gap-4 max-sm:grid-cols-1"
         role="group"
         aria-label="Answer options"
       >
-        {["A", "B", "C", "D"].map((k) => (
-          <button
-            key={k}
-            className="option"
-            onClick={() => cast(k)}
-            disabled={disabled}
-            aria-disabled={disabled}
-            title={
-              disabled
-                ? "Afventer åben afstemning eller du har allerede stemt"
-                : `Vælg ${k}`
-            }
-            accessKey={k.toLowerCase()}
-          >
-            {k}
-          </button>
-        ))}
+        {["A", "B", "C", "D"].map((k) => {
+          const isChosen = hasVoted && choice === k;
+          return (
+            <button
+              key={k}
+              className={
+                "option transition " +
+                (isChosen ? "ring-4 ring-[#ffe9a9] scale-[1.02]" : "")
+              }
+              onClick={() => cast(k)}
+              disabled={disabled}
+              aria-disabled={disabled}
+              title={
+                disabled
+                  ? "Afventer åben afstemning eller du har allerede stemt"
+                  : `Vælg ${k}`
+              }
+              accessKey={k.toLowerCase()}
+            >
+              {k}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

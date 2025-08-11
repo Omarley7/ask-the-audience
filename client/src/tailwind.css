@@ -43,6 +43,14 @@
   .option {
     @apply text-xl font-semibold py-6 rounded-2xl bg-gradient-to-b from-[#f1d485] to-[#d6b25a] border border-[#e0c16d] text-[#1a1506] shadow-inner;
   }
+  /* Dim / deactivated state for voting buttons */
+  .option:disabled,
+  .option[aria-disabled="true"] {
+    @apply cursor-not-allowed opacity-40;
+    filter: grayscale(55%) brightness(0.85);
+    border-color: #b69a4a;
+    box-shadow: none;
+  }
   .lock {
     @apply text-gold font-bold;
   }

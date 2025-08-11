@@ -106,6 +106,11 @@ export default function HostView() {
         </div>
         <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-gray-400">
           <span className="badge">Runde #{state.roundId}</span>
+          {typeof state.audienceCount === "number" && (
+            <span className="badge" title="Aktive deltagere">
+              👥 {state.audienceCount}
+            </span>
+          )}
         </div>
         <div className="panel flex flex-col items-center gap-4">
           <div className="flex flex-nowrap items-center gap-4">

@@ -86,7 +86,10 @@ function getOrCreateRound(sess) {
 function sessionState(sess) {
   const { roundId, votingOpen } = sess;
   const round = getOrCreateRound(sess);
-  return { roundId, votingOpen, tally: round.tally };
+  // live audience count based on current sockets in the audience room
+  const audienceCount =
+    io.sockets.adapter.rooms.get(`aud:${sess.sessionId}`)?.size || 0;
+  return { roundId, votingOpen, tally: round.tally, audienceCount };
 }
 
 // ---- REST: create session ----
@@ -192,19 +195,20 @@ io.on("connection", (socket) => {
     if (!sess) return ackCb && ackCb({ error: "not_found" });
     // Join audience room for live voting state updates
     socket.join(`aud:${sessionId}`);
+    socket.data.audienceSessionId = sessionId;
 
     // If client provided an existing ack, respect it
     if (clientAck && sess.acks.has(clientAck)) {
       const round = getOrCreateRound(sess);
-      return (
-        ackCb &&
-        ackCb({
-          clientAck,
-          roundId: sess.roundId,
-          votingOpen: sess.votingOpen,
-          hasVoted: !!round.byAck[clientAck],
-        })
-      );
+      const response = {
+        clientAck,
+        roundId: sess.roundId,
+        votingOpen: sess.votingOpen,
+        hasVoted: !!round.byAck[clientAck],
+      };
+      ackCb && ackCb(response);
+      io.to(`host:${sessionId}`).emit("state:update", sessionState(sess));
+      return;
     }
 
     // Soft cap ~30 (allow up to 35)
@@ -223,6 +227,7 @@ io.on("connection", (socket) => {
     if (ENABLE_HMAC) payload.sig = signAck(newAck);
     sess.acks.add(newAck);
     ackCb && ackCb(payload);
+    io.to(`host:${sessionId}`).emit("state:update", sessionState(sess));
   });
 
   socket.on(
@@ -265,6 +270,14 @@ io.on("connection", (socket) => {
   );
   socket.on("disconnect", (reason) => {
     dbg(`[disconnect] socket=${socket.id} reason=${reason}`);
+    const audSessId = socket.data.audienceSessionId;
+    if (audSessId) {
+      const sess = sessions.get(audSessId);
+      if (sess) {
+        // Emit updated audience count to host
+        io.to(`host:${audSessId}`).emit("state:update", sessionState(sess));
+      }
+    }
   });
 });
 
