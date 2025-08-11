@@ -13,7 +13,7 @@ require("dotenv").config();
 const PORT = process.env.PORT || 3001;
 const ORIGIN_PATTERNS = (process.env.CLIENT_ORIGINS || "http://localhost:5173")
   .split(",")
-  .map(s => s.trim())
+  .map((s) => s.trim())
   .filter(Boolean);
 
 // turn "https://*.myapp.com" into /^https:\/\/.*\.myapp\.com$/
@@ -23,12 +23,15 @@ const toRegex = (p) => {
   return new RegExp(`^${esc}$`);
 };
 const ORIGIN_REGEXES = ORIGIN_PATTERNS.map(toRegex);
-const isAllowedOrigin = (origin) =>
-  ORIGIN_REGEXES.some(rx => rx.test(origin));
+const isAllowedOrigin = (origin) => {
+  if (DEBUG) console.log("Checking origin:", origin);
+  const res = ORIGIN_REGEXES.some((rx) => rx.test(origin));
+  if (DEBUG) console.log("Allowed origin:", res);
+  return res;
+};
 
 // pick a primary origin for building links/QRs
-const PRIMARY_ORIGIN =
-  process.env.CLIENT_PUBLIC_ORIGIN || ORIGIN_PATTERNS[0];
+const PRIMARY_ORIGIN = process.env.CLIENT_PUBLIC_ORIGIN || ORIGIN_PATTERNS[0];
 
 // Debug toggle (set DEBUG=1 or true to enable verbose socket logging)
 const DEBUG = ![undefined, "", "0", "false", "off"].includes(
@@ -39,13 +42,15 @@ const dbg = (...args) => {
 };
 
 const app = express();
-app.use(cors({
-  origin(origin, cb) {
-    if (!origin) return cb(null, true);
-    if (isAllowedOrigin(origin)) return cb(null, true);
-    cb(new Error("Not allowed by CORS"));
-  }
-}));
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (!origin) return cb(null, true);
+      if (isAllowedOrigin(origin)) return cb(null, true);
+      cb(new Error("Not allowed by CORS"));
+    },
+  })
+);
 app.use(express.json());
 
 const server = http.createServer(app);
