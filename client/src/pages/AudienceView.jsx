@@ -120,32 +120,29 @@ export default function AudienceView() {
 
   return (
     <div className="card">
-      <h2
-        style={{
-          marginTop: 0,
-          display: "flex",
-          alignItems: "center",
-          gap: ".5rem",
-        }}
-      >
+      <h2 className="mb-2 flex items-center gap-2 text-xl font-semibold">
         Vælg dit svar <span className="badge">Runde #{roundId}</span>
       </h2>
       {!votingOpen && (
-        <p className="lock">
+        <p className="text-gold font-bold">
           Afstemningen er ikke åben endnu – vær sød at vente et øjeblik 💕
         </p>
       )}
       {hasVoted && (
-        <p className="lock">
+        <p className="text-gold font-bold">
           Du valgte <b>{choice ?? "…"}</b>. Tak! Din stemme er låst for denne
           runde ✨
         </p>
       )}
-      <div className="biggrid" role="group" aria-label="Answer options">
+      <div
+        className="grid grid-cols-2 gap-4 max-sm:grid-cols-1"
+        role="group"
+        aria-label="Answer options"
+      >
         {["A", "B", "C", "D"].map((k) => (
           <button
             key={k}
-            className="option gold"
+            className="option"
             onClick={() => cast(k)}
             disabled={disabled}
             aria-disabled={disabled}

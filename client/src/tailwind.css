@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom utilities approximating previous design */
+@layer base {
+  body {
+    @apply bg-indigoDeep text-gray-100 font-sans min-h-screen;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-semibold;
+  }
+}
+@layer components {
+  .card {
+    @apply bg-gradient-to-br from-[#0f1533] to-[#0b1020] border border-[#1f2b5a] rounded-2xl shadow-lg p-4;
+  }
+  .panel {
+    @apply bg-panel border border-[#253167] rounded-xl p-4;
+  }
+  /* Glowing state for when voting is open */
+  .open-glow {
+    /* Vibrant neon green glow */
+    border-color: #20ff91 !important;
+    box-shadow: 0 0 0 2px #20ff91, 0 0 18px 4px #20ff91,
+      0 0 42px 10px rgba(32, 255, 145, 0.65);
+    transition: box-shadow 250ms ease, border-color 250ms ease;
+  }
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 text-sm border border-[#2a3a7d] rounded-full bg-[#0e1533];
+  }
+  .bgroup {
+    @apply flex flex-wrap gap-2;
+  }
+  .copy {
+    @apply font-mono px-2 py-1 rounded-md bg-[#0c1331] border border-[#213174] text-sm break-all;
+  }
+  .link {
+    @apply text-gold font-semibold underline-offset-2 hover:underline;
+  }
+  .option {
+    @apply text-xl font-semibold py-6 rounded-2xl bg-gradient-to-b from-[#f1d485] to-[#d6b25a] border border-[#e0c16d] text-[#1a1506] shadow-inner;
+  }
+  .lock {
+    @apply text-gold font-bold;
+  }
+  .biggrid {
+    @apply grid grid-cols-2 gap-4 max-sm:grid-cols-1;
+  }
+  .chart {
+    @apply p-4;
+  }
+  .bar {
+    @apply h-7 rounded-xl bg-[#151d41] border border-[#2a3a7d] relative overflow-hidden;
+  }
+  .fill {
+    @apply h-full bg-gradient-to-r from-[#d6b25a] to-[#f1d485] shadow-inner;
+  }
+  .labelrow {
+    @apply flex justify-between text-sm text-gray-400 mt-1;
+  }
+  header {
+    @apply flex gap-2 items-center justify-center p-4 border-b border-[#1f2b5a] bg-gradient-to-b from-[#121a3b] to-[#0b1020];
+  }
+  .icon {
+    @apply text-2xl drop-shadow;
+  }
+  .container {
+    @apply max-w-5xl mx-auto p-4;
+  }
+  button {
+    @apply bg-[#18224d] border border-[#2a3a7d] text-gray-100 font-semibold tracking-wide px-4 py-3 rounded-full transition shadow-sm active:translate-y-px;
+  }
+  button:hover {
+    @apply ring-2 ring-gold/40;
+  }
+  button.primary {
+    @apply bg-gradient-to-b from-[#273a86] to-[#1b2b6b] border-[#3c55a9];
+  }
+  button.warn {
+    @apply bg-gradient-to-b from-[#7a2740] to-[#591b2b] border-[#a33c55];
+  }
+}

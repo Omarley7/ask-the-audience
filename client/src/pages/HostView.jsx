@@ -78,65 +78,53 @@ export default function HostView() {
   const joinHref = `${location.origin}/join/${activeId ?? ""}`;
 
   return (
-    <div className="grid">
-      <div className="card">
-        <h2 style={{ marginTop: 0 }}>Værtspanel</h2>
-        <div className="bgroup" style={{ marginBottom: "1rem" }}>
+    <div className="grid gap-4 md:grid-cols-2">
+      <div className={"card" + (state.votingOpen ? " open-glow" : "")}>
+        <h2 className="mb-2 text-xl font-semibold max-md:text-center">
+          Værtspanel
+        </h2>
+        <div className="mb-4 flex flex-wrap gap-2">
           {!state.votingOpen && (
-            <button className="primary" onClick={() => toggleVoting(true)}>
-              Åbn afstemning
+            <button
+              className="primary grow saturate-150"
+              onClick={() => toggleVoting(true)}
+            >
+              Åbn
             </button>
           )}
           {state.votingOpen && (
-            <button onClick={() => toggleVoting(false)}>Luk afstemning</button>
+            <button
+              className="primary grow"
+              onClick={() => toggleVoting(false)}
+            >
+              Luk
+            </button>
           )}
           <button className="warn" onClick={resetRound}>
-            Næste runde
+            Næste
           </button>
         </div>
-        <div className="status">
-          <span className="badge">{state.votingOpen ? "ÅBEN" : "LUKKET"}</span>
-          <span>•</span>
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-gray-400">
           <span className="badge">Runde #{state.roundId}</span>
         </div>
-
-        <div
-          style={{
-            marginTop: "1rem",
-            display: "flex",
-            flexDirection: "column",
-            gap: "1rem",
-            alignItems: "center",
-          }}
-          className="panel"
-        >
-          <div
-            style={{
-              display: "flex",
-              gap: "1rem",
-              alignItems: "center",
-              flexWrap: "nowrap",
-            }}
-          >
-            <div>
-              <div className="copy">{sessionId ?? sess.sessionId ?? "..."}</div>
+        <div className="panel flex flex-col items-center gap-4">
+          <div className="flex flex-nowrap items-center gap-4">
+            <div className="copy text-base">
+              {sessionId ?? sess.sessionId ?? "..."}
             </div>
-            <div>
-              <button
-                onClick={() => navigator.clipboard?.writeText(joinHref)}
-                title="Kopiér deltagerlinket til udklipsholderen"
-                style={{ flex: 1 }}
-              >
-                Kopiér deltagerlink
-              </button>
-            </div>
+            <button
+              onClick={() => navigator.clipboard?.writeText(joinHref)}
+              title="Kopiér deltagerlinket til udklipsholderen"
+              className="hover:ring-gold/40 rounded-full border border-[#2a3a7d] bg-[#18224d] px-4 py-2 font-semibold hover:ring-2"
+            >
+              Kopiér deltagerlink
+            </button>
           </div>
           <Qr dataUrl={sess.qrDataUrl} />
         </div>
       </div>
-
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>Stemmer lige nu</h2>
+        <h2 className="mt-0 text-xl font-semibold">Stemmer lige nu</h2>
         <BarChart tally={state.tally} />
       </div>
     </div>

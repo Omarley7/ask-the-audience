@@ -5,7 +5,7 @@ import App from "./App.jsx";
 import AudienceView from "./pages/AudienceView.jsx";
 import HostView from "./pages/HostView.jsx";
 import Landing from "./pages/Landing.jsx";
-import "./styles.css";
+import "./tailwind.css";
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
