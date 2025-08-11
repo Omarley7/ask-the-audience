@@ -11,12 +11,15 @@ const path = require("path");
 require("dotenv").config();
 
 const PORT = process.env.PORT || 3001;
-const NODE_ENV = process.env.NODE_ENV || "development";
-const DEV = NODE_ENV !== "production";
+// DEV flag controls development behavior (e.g., default CORS dev origins).
+// Set DEV=1/true/on for development; set DEV=0/false/off for production.
+const DEV = !["0", "false", "off"].includes(
+  (process.env.DEV ?? "1").toLowerCase()
+);
 
 // Allowlist origins:
-// - In production: use CLIENT_ORIGINS env (comma-separated; supports wildcard/regex via toRegex)
-// - In development: add common dev UI origins (Vite on 5173) in addition to CLIENT_ORIGINS
+// - When DEV=false: use CLIENT_ORIGINS env (comma-separated; supports wildcard/regex via toRegex)
+// - When DEV=true: add common dev UI origins (Vite on 5173) in addition to CLIENT_ORIGINS
 const ENV_ORIGINS = (process.env.CLIENT_ORIGINS || "")
   .split(",")
   .map((s) => s.trim())
@@ -376,7 +379,7 @@ server.listen(PORT, () => {
     `Ask the Audience server running at ${originOut} (debug=${DEBUG})`
   );
   // Always print startup diagnostics
-  console.log(`Environment: NODE_ENV=${NODE_ENV} DEV=${DEV} PORT=${PORT}`);
+  console.log(`Environment: DEV=${DEV} PORT=${PORT}`);
   console.log(`Primary origin (used for links/QR): ${PRIMARY_ORIGIN}`);
   console.log(
     `CORS: same-origin allowed automatically; additional allowlist patterns:`,

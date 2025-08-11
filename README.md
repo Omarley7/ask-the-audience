@@ -64,7 +64,7 @@ npm run client
 These environment variables control host/ports, logging, and CORS.
 
 - PORT: port for the Express/Socket.IO server (default 3001)
-- NODE_ENV: production or development (affects CORS defaults)
+- DEV: set to 1/true/on for development defaults; 0/false/off for production
 - DEBUG: set to 1/true to enable verbose socket debug logs
 - CLIENT_ORIGINS: comma-separated list of allowed browser origins for cross-origin access
   - Also used to select the primary origin for building public links/QRs: the first entry is used.
@@ -82,8 +82,8 @@ Client-side (Vite) env vars:
 Behavior:
 
 - Same-origin is always allowed automatically (UI and API on the same host:port).
-- In development, the server also allows http://localhost:5173 and http://127.0.0.1:5173 by default (Vite).
-- In production, only the origins listed in CLIENT_ORIGINS are allowed for cross-origin requests.
+- When DEV=true, the server also allows http://localhost:5173 and http://127.0.0.1:5173 by default (Vite).
+- When DEV=false, only the origins listed in CLIENT_ORIGINS are allowed for cross-origin requests.
 - The startup log prints effective CORS patterns and the chosen primary origin.
 
 Examples:
@@ -91,14 +91,14 @@ Examples:
 ```
 # Development example
 PORT=3001
-NODE_ENV=development
+DEV=1
 DEBUG=1
 CLIENT_ORIGINS=http://localhost:5173
 VITE_DEBUG=1
 # VITE_SERVER_URL=http://localhost:3001  # optional; defaults to same-origin
 
 # Production example (multiple public hostnames)
-NODE_ENV=production
+DEV=0
 PORT=3001
 CLIENT_ORIGINS=https://app.example.com,https://alt.example.com
 # VITE_DEBUG=0
