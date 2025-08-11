@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
-
 export default function Landing() {
   const nav = useNavigate();
   const [code, setCode] = useState("");
@@ -12,7 +10,7 @@ export default function Landing() {
     if (creating) return;
     setCreating(true);
     try {
-      const res = await fetch(`${API}/api/session`, { method: "POST" });
+      const res = await fetch(`/api/session`, { method: "POST" });
       const data = await res.json();
       nav(`/host/${data.sessionId}`);
     } catch (e) {

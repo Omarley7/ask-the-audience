@@ -4,8 +4,6 @@ import BarChart from "../components/BarChart.jsx";
 import Qr from "../components/Qr.jsx";
 import { __DEBUG__, socket } from "../socket.js";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
-
 export default function HostView() {
   const { sessionId } = useParams();
   const nav = useNavigate();
@@ -22,7 +20,7 @@ export default function HostView() {
   useEffect(() => {
     if (!sessionId) {
       (async () => {
-        const res = await fetch(`${API}/api/session`, { method: "POST" });
+        const res = await fetch(`/api/session`, { method: "POST" });
         const data = await res.json();
         console.log("[host] created session", data);
         setSess(data);
@@ -34,7 +32,7 @@ export default function HostView() {
         sess.sessionId
       );
       (async () => {
-        const r = await fetch(`${API}/api/session/${sess.sessionId}`);
+        const r = await fetch(`/api/session/${sess.sessionId}`);
         if (r.ok) {
           const data = await r.json();
           if (__DEBUG__) console.log("[host] fetched existing session", data);

@@ -11,10 +11,18 @@ const path = require("path");
 require("dotenv").config();
 
 const PORT = process.env.PORT || 3001;
-const ORIGIN_PATTERNS = (process.env.CLIENT_ORIGINS || "http://localhost:5173")
+const NODE_ENV = process.env.NODE_ENV || "development";
+const DEV = NODE_ENV !== "production";
+
+// Allowlist origins:
+// - In production: use CLIENT_ORIGINS env (comma-separated; supports wildcard/regex via toRegex)
+// - In development: add common dev UI origins (Vite on 5173) in addition to CLIENT_ORIGINS
+const ENV_ORIGINS = (process.env.CLIENT_ORIGINS || "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+const DEFAULT_DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
+const ORIGIN_PATTERNS = [...ENV_ORIGINS, ...(DEV ? DEFAULT_DEV_ORIGINS : [])];
 
 // turn "https://*.myapp.com" into /^https:\/\/.*\.myapp\.com$/
 // If an env pattern ends with a trailing slash (e.g. "https://foo.bar/"), we treat that
@@ -33,14 +41,32 @@ const toRegex = (p) => {
 };
 const ORIGIN_REGEXES = ORIGIN_PATTERNS.map(toRegex);
 const isAllowedOrigin = (origin) => {
-  if (DEBUG) console.log("Checking origin:", origin);
+  console.log("Checking origin:", origin);
   const res = ORIGIN_REGEXES.some((rx) => rx.test(origin));
-  if (DEBUG) console.log("Allowed origin:", res);
+  console.log("Allowed origin:", res);
   return res;
 };
 
+// Same-origin check using request Host header vs Origin header
+function isSameOriginReq(req, origin) {
+  try {
+    if (!origin) return true; // curl or non-browser
+    const u = new URL(origin);
+    const hostHeader = req.headers.host; // e.g. example.com:3001
+    if (!hostHeader) return false;
+    const originHostPort = u.port ? `${u.hostname}:${u.port}` : u.hostname;
+    return hostHeader.toLowerCase() === originHostPort.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
 // pick a primary origin for building links/QRs
-const PRIMARY_ORIGIN = process.env.CLIENT_PUBLIC_ORIGIN || ORIGIN_PATTERNS[0];
+// We avoid a separate CLIENT_PUBLIC_ORIGIN; instead, we use the FIRST entry of CLIENT_ORIGINS
+// (if provided). Otherwise we fall back to the first effective pattern (dev default),
+// and finally to a localhost URL with the server port.
+const PRIMARY_ORIGIN =
+  ENV_ORIGINS[0] || ORIGIN_PATTERNS[0] || `http://localhost:${PORT}`;
 
 // Debug toggle (set DEBUG=1 or true to enable verbose socket logging)
 const DEBUG = ![undefined, "", "0", "false", "off"].includes(
@@ -51,13 +77,18 @@ const dbg = (...args) => {
 };
 
 const app = express();
+// Configure CORS per-request so we can allow same-origin dynamically and still support allowlists
 app.use(
-  cors({
-    origin(origin, cb) {
-      if (!origin) return cb(null, true);
-      if (isAllowedOrigin(origin)) return cb(null, true);
-      cb(new Error("Not allowed by CORS"));
-    },
+  cors((req, cb) => {
+    const origin = req.headers.origin;
+    // No Origin header: non-browser or same-origin simple GET.
+    // Do not set ACAO; request proceeds normally.
+    if (!origin) return cb(null, { origin: true });
+    // Allow same-origin (UI and API on same host:port)
+    if (isSameOriginReq(req, origin)) return cb(null, { origin: true });
+    // Allow explicitly allowed cross-origins
+    if (isAllowedOrigin(origin)) return cb(null, { origin: true });
+    return cb(new Error("Not allowed by CORS"));
   })
 );
 app.use(express.json());
@@ -66,7 +97,9 @@ const server = http.createServer(app);
 const io = new Server(server, {
   allowRequest: (req, callback) => {
     const origin = req.headers.origin;
-    if (!origin || isAllowedOrigin(origin)) return callback(null, true);
+    if (!origin) return callback(null, true);
+    if (isSameOriginReq(req, origin)) return callback(null, true);
+    if (isAllowedOrigin(origin)) return callback(null, true);
     return callback("Not allowed by CORS", false);
   },
 });
@@ -329,7 +362,30 @@ app.get("*", (_, res) =>
 );
 
 server.listen(PORT, () => {
+  // Only append :PORT if PRIMARY_ORIGIN doesn't already specify one
+  let originOut = PRIMARY_ORIGIN;
+  try {
+    const u = new URL(PRIMARY_ORIGIN);
+    if (!u.port) originOut = `${PRIMARY_ORIGIN}:${PORT}`;
+  } catch {
+    // Fallback heuristic
+    if (!/:[0-9]+$/.test(PRIMARY_ORIGIN))
+      originOut = `${PRIMARY_ORIGIN}:${PORT}`;
+  }
   console.log(
-    `Spørg Publikum server kører på ${PRIMARY_ORIGIN}:${PORT} (debug=${DEBUG})`
+    `Ask the Audience server running at ${originOut} (debug=${DEBUG})`
   );
+  // Always print startup diagnostics
+  console.log(`Environment: NODE_ENV=${NODE_ENV} DEV=${DEV} PORT=${PORT}`);
+  console.log(`Primary origin (used for links/QR): ${PRIMARY_ORIGIN}`);
+  console.log(
+    `CORS: same-origin allowed automatically; additional allowlist patterns:`,
+    ORIGIN_PATTERNS.length ? ORIGIN_PATTERNS : "(none)"
+  );
+  if (DEV) {
+    console.log(`CORS dev defaults enabled:`, DEFAULT_DEV_ORIGINS);
+  }
+  if (ENV_ORIGINS.length) {
+    console.log(`CORS env allowlist:`, ENV_ORIGINS);
+  }
 });
