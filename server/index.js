@@ -11,7 +11,25 @@ const path = require("path");
 require("dotenv").config();
 
 const PORT = process.env.PORT || 3001;
-const ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+const ORIGIN_PATTERNS = (process.env.CLIENT_ORIGINS || "http://localhost:5173")
+  .split(",")
+  .map(s => s.trim())
+  .filter(Boolean);
+
+// turn "https://*.myapp.com" into /^https:\/\/.*\.myapp\.com$/
+const toRegex = (p) => {
+  if (p.startsWith("/") && p.endsWith("/")) return new RegExp(p.slice(1, -1));
+  const esc = p.replace(/\./g, "\\.").replace(/\*/g, ".*");
+  return new RegExp(`^${esc}$`);
+};
+const ORIGIN_REGEXES = ORIGIN_PATTERNS.map(toRegex);
+const isAllowedOrigin = (origin) =>
+  ORIGIN_REGEXES.some(rx => rx.test(origin));
+
+// pick a primary origin for building links/QRs
+const PRIMARY_ORIGIN =
+  process.env.CLIENT_PUBLIC_ORIGIN || ORIGIN_PATTERNS[0];
+
 // Debug toggle (set DEBUG=1 or true to enable verbose socket logging)
 const DEBUG = ![undefined, "", "0", "false", "off"].includes(
   (process.env.DEBUG || "").toLowerCase()
@@ -21,12 +39,22 @@ const dbg = (...args) => {
 };
 
 const app = express();
-app.use(cors({ origin: ORIGIN }));
+app.use(cors({
+  origin(origin, cb) {
+    if (!origin) return cb(null, true);
+    if (isAllowedOrigin(origin)) return cb(null, true);
+    cb(new Error("Not allowed by CORS"));
+  }
+}));
 app.use(express.json());
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: ORIGIN },
+  allowRequest: (req, callback) => {
+    const origin = req.headers.origin;
+    if (!origin || isAllowedOrigin(origin)) return callback(null, true);
+    return callback("Not allowed by CORS", false);
+  },
 });
 
 /** @typedef {{
@@ -96,7 +124,7 @@ function sessionState(sess) {
 app.post("/api/session", async (req, res) => {
   const sessionId = genSessionId();
   const joinUrlPath = `/join/${sessionId}`;
-  const fullJoinUrl = `${ORIGIN}${joinUrlPath}`;
+  const fullJoinUrl = `${PRIMARY_ORIGIN}${joinUrlPath}`;
 
   /** @type {Session} */
   const session = {
@@ -124,7 +152,7 @@ app.get("/api/session/:sessionId", async (req, res) => {
   const sess = sessions.get(sessionId);
   if (!sess) return res.status(404).json({ error: "not_found" });
   const joinUrlPath = `/join/${sessionId}`;
-  const fullJoinUrl = `${ORIGIN}${joinUrlPath}`;
+  const fullJoinUrl = `${PRIMARY_ORIGIN}${joinUrlPath}`;
   if (!sess.qrDataUrl) {
     try {
       sess.qrDataUrl = await QRCode.toDataURL(fullJoinUrl, {
@@ -288,6 +316,6 @@ app.get("*", (_, res) =>
 
 server.listen(PORT, () => {
   console.log(
-    `Spørg Publikum server kører på ${ORIGIN}:${PORT} (debug=${DEBUG})`
+    `Spørg Publikum server kører på ${PRIMARY_ORIGIN}:${PORT} (debug=${DEBUG})`
   );
 });
