@@ -69,7 +69,7 @@ function isSameOriginReq(req, origin) {
 // (if provided). Otherwise we fall back to the first effective pattern (dev default),
 // and finally to a localhost URL with the server port.
 const PRIMARY_ORIGIN =
-  ENV_ORIGINS[0] || ORIGIN_PATTERNS[0] || `http://localhost:${PORT}`;
+  (ENV_ORIGINS[0] || ORIGIN_PATTERNS[0] || `http://localhost:${PORT}`).replace(/\/$/, '');
 
 // Debug toggle (set DEBUG=1 or true to enable verbose socket logging)
 const DEBUG = ![undefined, "", "0", "false", "off"].includes(
