@@ -5,6 +5,8 @@ import App from "./App.jsx";
 import AudienceView from "./pages/AudienceView.jsx";
 import HostView from "./pages/HostView.jsx";
 import Landing from "./pages/Landing.jsx";
+import SimpleAudienceView from "./pages/SimpleAudienceView.jsx";
+import SimpleHostView from "./pages/SimpleHostView.jsx";
 import "./tailwind.css";
 
 createRoot(document.getElementById("root")).render(
@@ -16,6 +18,12 @@ createRoot(document.getElementById("root")).render(
           <Route path="/host" element={<HostView />} />
           <Route path="/host/:sessionId" element={<HostView />} />
           <Route path="/join/:sessionId" element={<AudienceView />} />
+          <Route path="/simple/host" element={<SimpleHostView />} />
+          <Route path="/simple/host/:sessionId" element={<SimpleHostView />} />
+          <Route
+            path="/simple/join/:sessionId"
+            element={<SimpleAudienceView />}
+          />
         </Route>
       </Routes>
     </BrowserRouter>

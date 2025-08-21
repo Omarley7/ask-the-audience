@@ -7,11 +7,15 @@ export default function Landing() {
   const [code, setCode] = useState("");
   const [creating, setCreating] = useState(false);
 
-  async function createSession() {
+  async function createSessionQuiz() {
     if (creating) return;
     setCreating(true);
     try {
-      const res = await fetch(`${SERVER_URL}/api/session`, { method: "POST" });
+      const res = await fetch(`${SERVER_URL}/api/session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "quiz" }),
+      });
       const data = await res.json();
       nav(`/host/${data.sessionId}`);
     } catch (e) {
@@ -20,11 +24,36 @@ export default function Landing() {
       setCreating(false);
     }
   }
+  async function createSessionSimple() {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "simple" }),
+      });
+      const data = await res.json();
+      nav(`/simple/host/${data.sessionId}`);
+    } catch (e) {
+      alert("Kunne ikke oprette session");
+    } finally {
+      setCreating(false);
+    }
+  }
 
-  function join(e) {
+  async function joinByCode(e) {
     e.preventDefault();
     if (!code.trim()) return;
-    nav(`/join/${code.trim()}`);
+    try {
+      const r = await fetch(`${SERVER_URL}/api/session/${code.trim()}/info`);
+      if (!r.ok) throw new Error("not_found");
+      const { mode } = await r.json();
+      if (mode === "simple") nav(`/simple/join/${code.trim()}`);
+      else nav(`/join/${code.trim()}`);
+    } catch (err) {
+      alert("Ukendt kode");
+    }
   }
 
   return (
@@ -38,13 +67,23 @@ export default function Landing() {
         </p>
         <div className="mt-4 flex flex-col gap-4">
           <button
-            onClick={createSession}
+            onClick={createSessionSimple}
             disabled={creating}
             className="primary py-4 text-lg disabled:opacity-50"
           >
             {creating ? "Opretter…" : "Bliv vært"}
           </button>
-          <form onSubmit={join} className="flex flex-wrap justify-end gap-2">
+          <button
+            onClick={createSessionQuiz}
+            disabled={creating}
+            className="secondary py-4 text-lg disabled:opacity-50"
+          >
+            {creating ? "Opretter…" : "Start quiz"}
+          </button>
+          <form
+            onSubmit={joinByCode}
+            className="flex flex-wrap justify-end gap-2"
+          >
             <input
               inputMode="numeric"
               pattern="[0-9]*"

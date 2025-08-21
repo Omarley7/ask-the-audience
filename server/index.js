@@ -125,6 +125,7 @@ const io = new Server(server, {
  *  createdAt: number,
  *  votingOpen: boolean,
  *  roundId: number,
+ *  mode: 'simple'|'quiz',
  *  acks: Set<string>,
  *  votesByRound: Record<number, {
  *    byAck: Record<string,'A'|'B'|'C'|'D'>,
@@ -200,6 +201,7 @@ function sessionState(sess) {
 
 // ---- REST: create session ----
 app.post("/api/session", async (req, res) => {
+  const mode = req.body && req.body.mode === "simple" ? "simple" : "quiz";
   const sessionId = genSessionId();
   const joinUrlPath = `/join/${sessionId}`;
   const fullJoinUrl = `${PRIMARY_ORIGIN}${joinUrlPath}`;
@@ -210,6 +212,7 @@ app.post("/api/session", async (req, res) => {
     createdAt: Date.now(),
     votingOpen: false,
     roundId: 1,
+    mode,
     acks: new Set(),
     votesByRound: {},
     scores: { A: 0, B: 0 },
@@ -222,7 +225,7 @@ app.post("/api/session", async (req, res) => {
     scale: 4,
   });
   session.qrDataUrl = qrDataUrl;
-  res.json({ sessionId, joinUrl: joinUrlPath, qrDataUrl });
+  res.json({ sessionId, joinUrl: joinUrlPath, qrDataUrl, mode });
 });
 
 // Fetch existing session (for refresh scenario)
@@ -242,7 +245,40 @@ app.get("/api/session/:sessionId", async (req, res) => {
       return res.status(500).json({ error: "qr_failed" });
     }
   }
-  res.json({ sessionId, joinUrl: joinUrlPath, qrDataUrl: sess.qrDataUrl });
+  res.json({
+    sessionId,
+    joinUrl: joinUrlPath,
+    qrDataUrl: sess.qrDataUrl,
+    mode: sess.mode,
+  });
+});
+
+// Generate a QR for a given mode's join path
+app.get("/api/session/:sessionId/qr", async (req, res) => {
+  const { sessionId } = req.params;
+  const mode = String(req.query.mode || "quiz");
+  const sess = sessions.get(sessionId);
+  if (!sess) return res.status(404).json({ error: "not_found" });
+  const joinUrlPath =
+    mode === "simple" ? `/simple/join/${sessionId}` : `/join/${sessionId}`;
+  const fullJoinUrl = `${PRIMARY_ORIGIN}${joinUrlPath}`;
+  try {
+    const qrDataUrl = await QRCode.toDataURL(fullJoinUrl, {
+      margin: 1,
+      scale: 4,
+    });
+    return res.json({ sessionId, joinUrl: joinUrlPath, qrDataUrl });
+  } catch (e) {
+    return res.status(500).json({ error: "qr_failed" });
+  }
+});
+
+// Minimal session info for joining (to discover mode)
+app.get("/api/session/:sessionId/info", (req, res) => {
+  const { sessionId } = req.params;
+  const sess = sessions.get(sessionId);
+  if (!sess) return res.status(404).json({ error: "not_found" });
+  res.json({ sessionId, mode: sess.mode });
 });
 
 // Reset current round votes (host action)
@@ -402,6 +438,7 @@ io.on("connection", (socket) => {
         hasVoted: !!round.byAck[clientAck],
         scores: sess.scores,
         roundAwards: round.awarded,
+        mode: sess.mode,
       };
       ackCb && ackCb(response);
       io.to(`host:${sessionId}`).emit("state:update", sessionState(sess));
@@ -422,6 +459,7 @@ io.on("connection", (socket) => {
       hasVoted: false,
       scores: sess.scores,
       roundAwards: getOrCreateRound(sess).awarded,
+      mode: sess.mode,
     };
     if (ENABLE_HMAC) payload.sig = signAck(newAck);
     sess.acks.add(newAck);
