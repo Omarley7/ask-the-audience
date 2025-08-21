@@ -169,7 +169,11 @@ const emptyTally = () => ({ A: 0, B: 0, C: 0, D: 0 });
 
 function getOrCreateRound(sess) {
   if (!sess.votesByRound[sess.roundId]) {
-    sess.votesByRound[sess.roundId] = { byAck: {}, tally: emptyTally() };
+    sess.votesByRound[sess.roundId] = {
+      byAck: {},
+      tally: emptyTally(),
+      resetSeq: 0, // increments when host resets the round to allow re-voting
+    };
   }
   return sess.votesByRound[sess.roundId];
 }
@@ -229,6 +233,30 @@ app.get("/api/session/:sessionId", async (req, res) => {
   res.json({ sessionId, joinUrl: joinUrlPath, qrDataUrl: sess.qrDataUrl });
 });
 
+// Reset current round votes (host action)
+app.post("/api/session/:sessionId/reset", (req, res) => {
+  const { sessionId } = req.params;
+  const sess = sessions.get(sessionId);
+  if (!sess) return res.status(404).json({ error: "not_found" });
+  const round = getOrCreateRound(sess);
+  // Clear votes and bump reset sequence
+  round.byAck = {};
+  round.tally = emptyTally();
+  round.resetSeq = (round.resetSeq || 0) + 1;
+  // Optionally close voting to avoid accidental immediate votes; host can reopen
+  // Keep current votingOpen state as-is to match UI expectations
+
+  // Notify host with fresh state (tally zeros, counts updated)
+  io.to(`host:${sessionId}`).emit("state:update", sessionState(sess));
+  // Notify audience so clients that had voted can vote again in the same round
+  io.to(`aud:${sessionId}`).emit("audience:state", {
+    roundId: sess.roundId,
+    votingOpen: sess.votingOpen,
+    resetSeq: round.resetSeq,
+  });
+  res.json({ ok: true, roundId: sess.roundId, tally: round.tally });
+});
+
 // ---- Socket.IO ----
 io.on("connection", (socket) => {
   const ipAddr =
@@ -259,13 +287,28 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("session:reset", ({ sessionId }) => {
-    dbg(`[session:reset] session=${sessionId}`);
+  socket.on("session:nextRound", ({ sessionId }) => {
+    dbg(`[session:nextRound] session=${sessionId}`);
     const sess = sessions.get(sessionId);
     if (!sess) return;
     sess.roundId += 1;
     sess.votingOpen = false;
     getOrCreateRound(sess); // new empty round
+    io.to(`host:${sessionId}`).emit("state:update", sessionState(sess));
+    io.to(`aud:${sessionId}`).emit("audience:state", {
+      roundId: sess.roundId,
+      votingOpen: sess.votingOpen,
+    });
+  });
+
+  socket.on("session:prevRound", ({ sessionId }) => {
+    dbg(`[session:prevRound] session=${sessionId}`);
+    const sess = sessions.get(sessionId);
+    if (!sess) return;
+    if (sess.roundId <= 1) return; // prevent going below round 1
+    sess.roundId -= 1;
+    sess.votingOpen = false;
+    getOrCreateRound(sess); // ensure round exists (it should already)
     io.to(`host:${sessionId}`).emit("state:update", sessionState(sess));
     io.to(`aud:${sessionId}`).emit("audience:state", {
       roundId: sess.roundId,

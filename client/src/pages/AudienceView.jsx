@@ -77,6 +77,12 @@ export default function AudienceView() {
           // when voting closes, keep hasVoted/choice; on new round reset local vote state
         }
       }
+      // If host resets current round, we might receive a marker; unlock vote
+      if (typeof msg?.resetSeq === "number" && msg.roundId === roundId) {
+        if (__DEBUG__) console.log("[aud][state:reset] unlocking vote");
+        setHasVoted(false);
+        setChoice(null);
+      }
     }
     socket.on("audience:state", onAudState);
     return () => socket.off("audience:state", onAudState);

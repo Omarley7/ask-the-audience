@@ -70,9 +70,53 @@ export default function HostView() {
     setState((prev) => ({ ...prev, votingOpen: open }));
     socket.emit("session:setVoting", { sessionId: activeId, votingOpen: open });
   }
-  function resetRound() {
-    if (__DEBUG__) console.log("[host] resetRound emit", { sessionId });
-    socket.emit("session:reset", { sessionId });
+  function nextRound() {
+    if (__DEBUG__)
+      console.log("[host] nextRound emit", { sessionId: activeId });
+    socket.emit("session:nextRound", { sessionId: activeId });
+  }
+  function prevRound() {
+    if (__DEBUG__)
+      console.log("[host] prevRound emit", { sessionId: activeId });
+    socket.emit("session:prevRound", { sessionId: activeId });
+  }
+
+  async function resetCurrentRound() {
+    if (!activeId) return;
+    const totalVotes =
+      (state?.tally?.A || 0) +
+      (state?.tally?.B || 0) +
+      (state?.tally?.C || 0) +
+      (state?.tally?.D || 0);
+    const ok = window.confirm(
+      totalVotes > 0
+        ? `Nulstil runde #${state.roundId}? Dette sletter ${totalVotes} stemme(r).`
+        : `Nulstil runde #${state.roundId}?`
+    );
+    if (!ok) return;
+    try {
+      if (__DEBUG__)
+        console.log("[host] POST reset round", {
+          url: `${SERVER_URL}/api/session/${activeId}/reset`,
+        });
+      // Optimistic: zero tally immediately
+      setState((prev) => ({
+        ...prev,
+        tally: { A: 0, B: 0, C: 0, D: 0 },
+      }));
+      const r = await fetch(`${SERVER_URL}/api/session/${activeId}/reset`, {
+        method: "POST",
+      });
+      if (!r.ok) {
+        if (__DEBUG__) console.warn("[host] reset failed", r.status);
+        // Re-fetch state by re-subscribing ping
+        socket.emit("host:subscribe", { sessionId: activeId });
+        alert("Kunne ikke nulstille runden");
+      }
+    } catch (e) {
+      if (__DEBUG__) console.error("[host] reset error", e);
+      alert("Kunne ikke nulstille runden");
+    }
   }
 
   const joinHref = `${location.origin}/join/${activeId ?? ""}`;
@@ -100,9 +144,40 @@ export default function HostView() {
               Luk
             </button>
           )}
-          <button className="warn" onClick={resetRound}>
+          <button className="secondary bg-green-900" onClick={nextRound}>
             Næste
           </button>
+        </div>
+        <div className="mb-4 flex flex-wrap gap-2">
+          {(() => {
+            const totalVotes =
+              (state.tally?.A || 0) +
+              (state.tally?.B || 0) +
+              (state.tally?.C || 0) +
+              (state.tally?.D || 0);
+            const disabled = totalVotes === 0;
+            return (
+              <button
+                className={
+                  "warn grow " + (disabled ? "saturate-50 opacity-60" : "")
+                }
+                disabled={disabled}
+                title={
+                  disabled
+                    ? "Ingen stemmer at nulstille"
+                    : "Nulstil denne runde (sletter alle stemmer)"
+                }
+                onClick={resetCurrentRound}
+              >
+                Nulstil
+              </button>
+            );
+          })()}
+          {state.roundId > 1 && (
+            <button className="secondary" onClick={prevRound}>
+              Tilbage
+            </button>
+          )}
         </div>
         <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-gray-400">
           <span className="badge">Runde #{state.roundId}</span>
