@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { SERVER_URL } from "../socket.js";
 
 export default function Landing() {
   const nav = useNavigate();
@@ -10,7 +11,7 @@ export default function Landing() {
     if (creating) return;
     setCreating(true);
     try {
-      const res = await fetch(`/api/session`, { method: "POST" });
+      const res = await fetch(`${SERVER_URL}/api/session`, { method: "POST" });
       const data = await res.json();
       nav(`/host/${data.sessionId}`);
     } catch (e) {

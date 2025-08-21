@@ -94,7 +94,23 @@ app.use(
 app.use(express.json());
 
 const server = http.createServer(app);
+// Important: configure Socket.IO CORS so ACAO headers are sent for allowed origins
 const io = new Server(server, {
+  cors: {
+    origin: (origin, cb) => {
+      // No Origin header (non-browser) -> allow
+      if (!origin) return cb(null, true);
+      // Allow primary origin explicitly (handles optional trailing slash)
+      const o = origin.replace(/\/$/, "");
+      if (o === PRIMARY_ORIGIN) return cb(null, true);
+      // Allow dev/default and env-allowed origins
+      if (isAllowedOrigin(origin)) return cb(null, true);
+      return cb(new Error("Not allowed by CORS"), false);
+    },
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+  // Also keep a stricter gate at the transport level
   allowRequest: (req, callback) => {
     const origin = req.headers.origin;
     if (!origin) return callback(null, true);

@@ -45,7 +45,7 @@ Serverside:
 
 Client-side (Vite) env vars:
 
-- VITE_SERVER_URL: optional override for the Socket.IO server URL in the browser.
+- VITE_SERVER_URL: Needed for development. Override for the Socket.IO server URL in the browser.
   - Defaults to window.location.origin (same-origin) when not set.
   - Useful in development if the API runs on a different host/port without a dev proxy.
 - VITE_DEBUG: If exists, enables verbose client-side debug logs.
@@ -66,10 +66,10 @@ NODE_ENV=development
 SERVER_DEBUG=1
 VITE_DEBUG=1
 CLIENT_ORIGINS=http://localhost:5173
-# VITE_SERVER_URL=http://localhost:3001  # optional; defaults to same-origin
+VITE_SERVER_URL=http://localhost:3001
 
 # Production example (multiple public hostnames)
 SERVER_PORT=3001
-CLIENT_ORIGINS=https://app.example.com,https://alt.example.com
+CLIENT_ORIGINS=https://app.example.com,https://alt.example.com # When testing deployment locally, ensure port is identical: # CLIENT_ORIGINS=http://localhost:3001
 # VITE_SERVER_URL=https://app.example.com  # usually unnecessary; same-origin default works
 ```
