@@ -12,6 +12,8 @@ export default function HostView() {
     roundId: 1,
     votingOpen: false,
     tally: { A: 0, B: 0, C: 0, D: 0 },
+    scores: { A: 0, B: 0 },
+    roundAwards: { A: false, B: false },
   });
   // Joining always allowed once session exists
   const activeId = sessionId || sess.sessionId; // use this for emits / links
@@ -119,6 +121,35 @@ export default function HostView() {
     }
   }
 
+  async function awardPoint(team) {
+    if (!activeId) return;
+    if (!["A", "B"].includes(team)) return;
+    try {
+      // Optimistic update
+      setState((prev) => ({
+        ...prev,
+        scores: {
+          ...prev.scores,
+          [team]:
+            (prev.scores?.[team] || 0) + (prev.roundAwards?.[team] ? 0 : 1),
+        },
+        roundAwards: { ...prev.roundAwards, [team]: !prev.roundAwards?.[team] },
+      }));
+      const r = await fetch(`${SERVER_URL}/api/session/${activeId}/score`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team }), // toggle
+      });
+      if (!r.ok) {
+        // revert by re-syncing
+        socket.emit("host:subscribe", { sessionId: activeId });
+      }
+    } catch (e) {
+      if (__DEBUG__) console.error("[host] awardPoint error", e);
+      socket.emit("host:subscribe", { sessionId: activeId });
+    }
+  }
+
   const joinHref = `${location.origin}/join/${activeId ?? ""}`;
 
   return (
@@ -146,6 +177,43 @@ export default function HostView() {
           )}
           <button className="secondary bg-green-900" onClick={nextRound}>
             Næste
+          </button>
+        </div>
+        <div className="mb-2 flex items-center gap-2 text-sm text-gray-300">
+          <span className="badge">Team A: {state.scores?.A ?? 0}</span>
+          <span className="badge">Team B: {state.scores?.B ?? 0}</span>
+          {(state.roundAwards?.A || state.roundAwards?.B) && (
+            <span className="badge" title="Point tildelt i denne runde">
+              🏆 Runde:{" "}
+              {[
+                state.roundAwards?.A ? "Team A" : null,
+                state.roundAwards?.B ? "Team B" : null,
+              ]
+                .filter(Boolean)
+                .join(" & ")}
+            </span>
+          )}
+        </div>
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button
+            className={
+              "secondary " +
+              (state.roundAwards?.A ? "opacity-70 ring-2 ring-green-700" : "")
+            }
+            onClick={() => awardPoint("A")}
+            title="Giv Team A et point for denne runde"
+          >
+            {state.roundAwards?.A ? "-1 Team A" : "+1 Team A"}
+          </button>
+          <button
+            className={
+              "secondary " +
+              (state.roundAwards?.B ? "opacity-70 ring-2 ring-green-700" : "")
+            }
+            onClick={() => awardPoint("B")}
+            title="Giv Team B et point for denne runde"
+          >
+            {state.roundAwards?.B ? "-1 Team B" : "+1 Team B"}
           </button>
         </div>
         <div className="mb-4 flex flex-wrap gap-2">

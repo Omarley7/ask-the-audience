@@ -128,8 +128,11 @@ const io = new Server(server, {
  *  acks: Set<string>,
  *  votesByRound: Record<number, {
  *    byAck: Record<string,'A'|'B'|'C'|'D'>,
- *    tally: {A:number;B:number;C:number;D:number}
+ *    tally: {A:number;B:number;C:number;D:number},
+ *    awarded?: {A:boolean;B:boolean},
+ *    resetSeq?: number
  *  }>,
+ *  scores: {A:number;B:number},
  *  qrDataUrl?: string
  * }} Session */
 
@@ -173,6 +176,7 @@ function getOrCreateRound(sess) {
       byAck: {},
       tally: emptyTally(),
       resetSeq: 0, // increments when host resets the round to allow re-voting
+      awarded: { A: false, B: false },
     };
   }
   return sess.votesByRound[sess.roundId];
@@ -184,7 +188,14 @@ function sessionState(sess) {
   // live audience count based on current sockets in the audience room
   const audienceCount =
     io.sockets.adapter.rooms.get(`aud:${sess.sessionId}`)?.size || 0;
-  return { roundId, votingOpen, tally: round.tally, audienceCount };
+  return {
+    roundId,
+    votingOpen,
+    tally: round.tally,
+    audienceCount,
+    scores: sess.scores || { A: 0, B: 0 },
+    roundAwards: round.awarded || { A: false, B: false },
+  };
 }
 
 // ---- REST: create session ----
@@ -201,6 +212,7 @@ app.post("/api/session", async (req, res) => {
     roundId: 1,
     acks: new Set(),
     votesByRound: {},
+    scores: { A: 0, B: 0 },
   };
   getOrCreateRound(session);
   sessions.set(sessionId, session);
@@ -253,8 +265,51 @@ app.post("/api/session/:sessionId/reset", (req, res) => {
     roundId: sess.roundId,
     votingOpen: sess.votingOpen,
     resetSeq: round.resetSeq,
+    scores: sess.scores,
+    roundAwards: round.awarded,
   });
   res.json({ ok: true, roundId: sess.roundId, tally: round.tally });
+});
+
+// Assign/toggle a point to a team for the current round (host action)
+// Body: { team: 'A' | 'B', award?: boolean }
+app.post("/api/session/:sessionId/score", (req, res) => {
+  const { sessionId } = req.params;
+  const { team, award } = req.body || {};
+  const sess = sessions.get(sessionId);
+  if (!sess) return res.status(404).json({ error: "not_found" });
+  if (!["A", "B"].includes(team))
+    return res.status(400).json({ error: "bad_team" });
+  const round = getOrCreateRound(sess);
+  if (!sess.scores) sess.scores = { A: 0, B: 0 };
+  if (!round.awarded) round.awarded = { A: false, B: false };
+  // Determine desired new state: toggle if award not provided, else set as boolean
+  const current = !!round.awarded[team];
+  const next = typeof award === "boolean" ? !!award : !current;
+  if (next !== current) {
+    // Adjust cumulative score based on change
+    if (next) {
+      sess.scores[team] = (sess.scores[team] || 0) + 1;
+    } else {
+      sess.scores[team] = Math.max(0, (sess.scores[team] || 0) - 1);
+    }
+    round.awarded[team] = next;
+  }
+  // Notify clients
+  const state = sessionState(sess);
+  io.to(`host:${sessionId}`).emit("state:update", state);
+  io.to(`aud:${sessionId}`).emit("audience:state", {
+    roundId: sess.roundId,
+    votingOpen: sess.votingOpen,
+    scores: sess.scores,
+    roundAwards: round.awarded,
+  });
+  res.json({
+    ok: true,
+    scores: sess.scores,
+    roundId: sess.roundId,
+    roundAwards: round.awarded,
+  });
 });
 
 // ---- Socket.IO ----
@@ -284,6 +339,8 @@ io.on("connection", (socket) => {
     io.to(`aud:${sessionId}`).emit("audience:state", {
       roundId: sess.roundId,
       votingOpen: sess.votingOpen,
+      scores: sess.scores,
+      roundAwards: getOrCreateRound(sess).awarded,
     });
   });
 
@@ -298,6 +355,8 @@ io.on("connection", (socket) => {
     io.to(`aud:${sessionId}`).emit("audience:state", {
       roundId: sess.roundId,
       votingOpen: sess.votingOpen,
+      scores: sess.scores,
+      roundAwards: getOrCreateRound(sess).awarded,
     });
   });
 
@@ -313,6 +372,8 @@ io.on("connection", (socket) => {
     io.to(`aud:${sessionId}`).emit("audience:state", {
       roundId: sess.roundId,
       votingOpen: sess.votingOpen,
+      scores: sess.scores,
+      roundAwards: getOrCreateRound(sess).awarded,
     });
   });
 
@@ -339,6 +400,8 @@ io.on("connection", (socket) => {
         roundId: sess.roundId,
         votingOpen: sess.votingOpen,
         hasVoted: !!round.byAck[clientAck],
+        scores: sess.scores,
+        roundAwards: round.awarded,
       };
       ackCb && ackCb(response);
       io.to(`host:${sessionId}`).emit("state:update", sessionState(sess));
@@ -357,6 +420,8 @@ io.on("connection", (socket) => {
       roundId: sess.roundId,
       votingOpen: sess.votingOpen,
       hasVoted: false,
+      scores: sess.scores,
+      roundAwards: getOrCreateRound(sess).awarded,
     };
     if (ENABLE_HMAC) payload.sig = signAck(newAck);
     sess.acks.add(newAck);

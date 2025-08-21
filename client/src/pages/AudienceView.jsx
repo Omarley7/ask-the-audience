@@ -12,6 +12,8 @@ export default function AudienceView() {
   const [votingOpen, setVotingOpen] = useState(false);
   const [hasVoted, setHasVoted] = useState(false);
   const [choice, setChoice] = useState(null);
+  const [scores, setScores] = useState({ A: 0, B: 0 });
+  const [roundAwards, setRoundAwards] = useState({ A: false, B: false });
   // Joining always open while session exists
 
   const storedAck = useMemo(
@@ -42,6 +44,8 @@ export default function AudienceView() {
         setRoundId(resp.roundId);
         setVotingOpen(!!resp.votingOpen);
         setHasVoted(!!resp.hasVoted);
+        if (resp?.scores) setScores(resp.scores);
+        if (resp?.roundAwards) setRoundAwards(resp.roundAwards);
         if (__DEBUG__)
           console.log("[aud][state:init]", {
             roundId: resp.roundId,
@@ -83,6 +87,8 @@ export default function AudienceView() {
         setHasVoted(false);
         setChoice(null);
       }
+      if (msg?.scores) setScores(msg.scores);
+      if (msg?.roundAwards) setRoundAwards(msg.roundAwards);
     }
     socket.on("audience:state", onAudState);
     return () => socket.off("audience:state", onAudState);
@@ -129,17 +135,32 @@ export default function AudienceView() {
       <h2 className="mb-2 flex items-center gap-2 text-xl font-semibold">
         Vælg dit svar <span className="badge">Runde #{roundId}</span>
       </h2>
+      <div className="mb-2 flex items-center gap-2 text-sm text-gray-300">
+        <span className="badge">Team A: {scores.A ?? 0}</span>
+        <span className="badge">Team B: {scores.B ?? 0}</span>
+        {(roundAwards?.A || roundAwards?.B) && (
+          <span className="badge" title="Point tildelt i denne runde">
+            🏆 Runde:{" "}
+            {[
+              roundAwards?.A ? "Team A" : null,
+              roundAwards?.B ? "Team B" : null,
+            ]
+              .filter(Boolean)
+              .join(" & ")}
+          </span>
+        )}
+      </div>
       {hasVoted ? (
-        <p className="text-gold font-bold mb-2">
+        <p className="mb-2 font-bold text-gold">
           Du valgte <b>{choice ?? "…"}</b>. Tak! Din stemme er låst for denne
           runde ✨
         </p>
       ) : !votingOpen ? (
-        <p className="text-gold font-bold mb-2">
+        <p className="mb-2 font-bold text-gold">
           Afstemningen er ikke åben endnu
         </p>
       ) : (
-        <p className="text-gold font-bold mb-2">Afstemningen er åben 💕</p>
+        <p className="mb-2 font-bold text-gold">Afstemningen er åben 💕</p>
       )}
       <div
         className="grid grid-cols-2 gap-4 max-sm:grid-cols-1"
