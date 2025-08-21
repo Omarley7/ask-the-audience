@@ -10,12 +10,8 @@ const crypto = require("crypto");
 const path = require("path");
 require("dotenv").config();
 
-const PORT = process.env.PORT || 3001;
-// DEV flag controls development behavior (e.g., default CORS dev origins).
-// Set DEV=1/true/on for development; set DEV=0/false/off for production.
-const DEV = !["0", "false", "off"].includes(
-  (process.env.DEV ?? "1").toLowerCase()
-);
+const PORT = process.env.SERVER_PORT || 3001;
+const DEV = process.env.NODE_ENV === "development";
 
 // Allowlist origins:
 // - When DEV=false: use CLIENT_ORIGINS env (comma-separated; supports wildcard/regex via toRegex)
@@ -68,13 +64,14 @@ function isSameOriginReq(req, origin) {
 // We avoid a separate CLIENT_PUBLIC_ORIGIN; instead, we use the FIRST entry of CLIENT_ORIGINS
 // (if provided). Otherwise we fall back to the first effective pattern (dev default),
 // and finally to a localhost URL with the server port.
-const PRIMARY_ORIGIN =
-  (ENV_ORIGINS[0] || ORIGIN_PATTERNS[0] || `http://localhost:${PORT}`).replace(/\/$/, '');
+const PRIMARY_ORIGIN = (
+  ENV_ORIGINS[0] ||
+  ORIGIN_PATTERNS[0] ||
+  `http://localhost:${PORT}`
+).replace(/\/$/, "");
 
 // Debug toggle (set DEBUG=1 or true to enable verbose socket logging)
-const DEBUG = ![undefined, "", "0", "false", "off"].includes(
-  (process.env.DEBUG || "").toLowerCase()
-);
+const DEBUG = process.env.SERVER_DEBUG ? true : false;
 const dbg = (...args) => {
   if (DEBUG) console.log(...args);
 };
@@ -359,36 +356,26 @@ io.on("connection", (socket) => {
   });
 });
 
-app.use(express.static(path.join(__dirname, "..", "client", "dist")));
-app.get("*", (_, res) =>
-  res.sendFile(path.join(__dirname, "..", "client", "dist", "index.html"))
-);
+if (!DEV) {
+  console.log("Serving static files from /client/dist\n");
+  app.use(express.static(path.join(__dirname, "..", "client", "dist")));
+  app.get("*", (_, res) =>
+    res.sendFile(path.join(__dirname, "..", "client", "dist", "index.html"))
+  );
+} else {
+  console.warn(
+    "Not serving static files in development mode - VITE instance must host itself.\n"
+  );
+}
 
 server.listen(PORT, () => {
-  // Only append :PORT if PRIMARY_ORIGIN doesn't already specify one
-  let originOut = PRIMARY_ORIGIN;
-  try {
-    const u = new URL(PRIMARY_ORIGIN);
-    if (!u.port) originOut = `${PRIMARY_ORIGIN}:${PORT}`;
-  } catch {
-    // Fallback heuristic
-    if (!/:[0-9]+$/.test(PRIMARY_ORIGIN))
-      originOut = `${PRIMARY_ORIGIN}:${PORT}`;
-  }
-  console.log(
-    `Ask the Audience server running at ${originOut} (debug=${DEBUG})`
-  );
-  // Always print startup diagnostics
-  console.log(`Environment: DEV=${DEV} PORT=${PORT}`);
+  console.log(`Server environment: DEV=${DEV} PORT=${PORT} DEBUG=${DEBUG}`);
   console.log(`Primary origin (used for links/QR): ${PRIMARY_ORIGIN}`);
-  console.log(
-    `CORS: same-origin allowed automatically; additional allowlist patterns:`,
-    ORIGIN_PATTERNS.length ? ORIGIN_PATTERNS : "(none)"
-  );
+  console.log(`CORS: same-origin + allowlist patterns:`, ORIGIN_PATTERNS);
   if (DEV) {
     console.log(`CORS dev defaults enabled:`, DEFAULT_DEV_ORIGINS);
   }
   if (ENV_ORIGINS.length) {
-    console.log(`CORS env allowlist:`, ENV_ORIGINS);
+    console.log(`CORS .env allowlist:`, ENV_ORIGINS);
   }
 });

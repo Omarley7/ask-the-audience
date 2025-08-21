@@ -87,7 +87,7 @@ export default function HostView() {
               className="primary grow saturate-150"
               onClick={() => toggleVoting(true)}
             >
-              Åbn
+              Åben
             </button>
           )}
           {state.votingOpen && (

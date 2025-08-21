@@ -1,34 +1,3 @@
-# Spørg Publikum – Bryllupsversion 💍
-
-Lille (men kærligt) realtime app bygget med Express + Socket.IO + React/Vite. Ingen database – al data ligger i hukommelsen.
-
-## Lynstart (3 kommandoer)
-
-```bash
-# 1) Installer afhængigheder (server + klient via postinstall)
-npm install
-
-# 2) Start begge dev‑servere (Express :3001, Vite :5173)
-npm run dev
-
-# 3) Åbn appen
-# Vært:      http://localhost:5173/host   (opretter automatisk en session)
-# Publikum:  Brug QR / link der vises på værtssiden (/join/:sessionId)
-```
-
-### Alternativ: kør hver for sig
-
-```bash
-npm run server
-npm run client
-```
-
-### Noter
-
-- Al tilstand er flygtig (in-memory). Genstart = nye runder / koder.
-- Der findes (deaktiveret) kladder til HMAC signering og rate limiting.
-- Perfekt til en hurtig afstemning under taler eller lege. 🥂
-
 # Ask-the-Audience (Wedding Edition)
 
 Minimal Express + Socket.IO + Vite React app. No DB; all state in memory.
@@ -63,9 +32,11 @@ npm run client
 
 These environment variables control host/ports, logging, and CORS.
 
-- PORT: port for the Express/Socket.IO server (default 3001)
-- DEV: set to 1/true/on for development defaults; 0/false/off for production
-- DEBUG: set to 1/true to enable verbose socket debug logs
+Serverside:
+
+- NODE_ENV: if development, enables development mode (default behavior is production). No static version of the frontend is served.
+- SERVER_PORT: port for the Express/Socket.IO server (default 3001)
+- SERVER_DEBUG: If exists, enables verbose server-side debug logs.
 - CLIENT_ORIGINS: comma-separated list of allowed browser origins for cross-origin access
   - Also used to select the primary origin for building public links/QRs: the first entry is used.
   - Supports simple wildcards (\*) and raw regex when wrapped in slashes, e.g. /^https?:\/\/foo\.example\.com$/
@@ -77,7 +48,7 @@ Client-side (Vite) env vars:
 - VITE_SERVER_URL: optional override for the Socket.IO server URL in the browser.
   - Defaults to window.location.origin (same-origin) when not set.
   - Useful in development if the API runs on a different host/port without a dev proxy.
-- VITE_DEBUG: set to 1/true to enable client-side debug logs in the browser console.
+- VITE_DEBUG: If exists, enables verbose client-side debug logs.
 
 Behavior:
 
@@ -90,17 +61,15 @@ Examples:
 
 ```
 # Development example
-PORT=3001
-DEV=1
-DEBUG=1
-CLIENT_ORIGINS=http://localhost:5173
+SERVER_PORT=3001
+NODE_ENV=development
+SERVER_DEBUG=1
 VITE_DEBUG=1
+CLIENT_ORIGINS=http://localhost:5173
 # VITE_SERVER_URL=http://localhost:3001  # optional; defaults to same-origin
 
 # Production example (multiple public hostnames)
-DEV=0
-PORT=3001
+SERVER_PORT=3001
 CLIENT_ORIGINS=https://app.example.com,https://alt.example.com
-# VITE_DEBUG=0
 # VITE_SERVER_URL=https://app.example.com  # usually unnecessary; same-origin default works
 ```
