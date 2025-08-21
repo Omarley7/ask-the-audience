@@ -134,6 +134,13 @@ const io = new Server(server, {
  *    resetSeq?: number
  *  }>,
  *  scores: {A:number;B:number},
+ *  question?: { text: string, options: string[] } | null,
+ *  quiz?: {
+ *    id: number,
+ *    title?: string,
+ *    index: number, // 0-based question index
+ *    questions: Array<{ id: number, text: string, options: string[] }>
+ *  } | null,
  *  qrDataUrl?: string
  * }} Session */
 
@@ -189,6 +196,16 @@ function sessionState(sess) {
   // live audience count based on current sockets in the audience room
   const audienceCount =
     io.sockets.adapter.rooms.get(`aud:${sess.sessionId}`)?.size || 0;
+  // Derive current question from quiz (if present)
+  let q = sess.question || null;
+  if (sess.quiz && Array.isArray(sess.quiz.questions)) {
+    const idx = Math.max(
+      0,
+      Math.min(sess.quiz.index || 0, sess.quiz.questions.length - 1)
+    );
+    const cq = sess.quiz.questions[idx];
+    if (cq) q = { text: cq.text, options: cq.options };
+  }
   return {
     roundId,
     votingOpen,
@@ -196,6 +213,7 @@ function sessionState(sess) {
     audienceCount,
     scores: sess.scores || { A: 0, B: 0 },
     roundAwards: round.awarded || { A: false, B: false },
+    question: q,
   };
 }
 
@@ -216,6 +234,8 @@ app.post("/api/session", async (req, res) => {
     acks: new Set(),
     votesByRound: {},
     scores: { A: 0, B: 0 },
+    question: null,
+    quiz: null,
   };
   getOrCreateRound(session);
   sessions.set(sessionId, session);
@@ -303,8 +323,173 @@ app.post("/api/session/:sessionId/reset", (req, res) => {
     resetSeq: round.resetSeq,
     scores: sess.scores,
     roundAwards: round.awarded,
+    question: sess.question || null,
   });
   res.json({ ok: true, roundId: sess.roundId, tally: round.tally });
+});
+
+// Load a quiz by code and set the first question/options into session state
+// Body: { code: string }
+app.post("/api/session/:sessionId/loadQuiz", async (req, res) => {
+  const { sessionId } = req.params;
+  const { code } = req.body || {};
+  const sess = sessions.get(sessionId);
+  if (!sess) return res.status(404).json({ error: "not_found" });
+  if (!code || typeof code !== "string")
+    return res.status(400).json({ error: "bad_code" });
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+    return res.status(503).json({ error: "quiz_source_unavailable" });
+  }
+  // Lazy import to avoid hard dep if not configured
+  let createClient;
+  try {
+    ({ createClient } = require("@supabase/supabase-js"));
+  } catch (e) {
+    return res.status(503).json({ error: "quiz_source_unavailable" });
+  }
+  const sb = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      auth: { persistSession: false },
+    }
+  );
+  try {
+    // Find quiz by code
+    const { data: quiz, error: qErr } = await sb
+      .from("quizzes")
+      .select("id, slug, title")
+      .eq("code", code)
+      .single();
+    if (qErr || !quiz) return res.status(404).json({ error: "quiz_not_found" });
+    // Get phases sorted then first question with options
+    const { data: phases, error: pErr } = await sb
+      .from("phases")
+      .select("id, title, sort_order")
+      .eq("quiz_id", quiz.id)
+      .order("sort_order", { ascending: true });
+    if (pErr || !phases?.length)
+      return res.status(404).json({ error: "no_phases" });
+    // Load questions for all phases, preserving phase order
+    const phaseIds = phases.map((p) => p.id);
+    const { data: allQuestions, error: quErr } = await sb
+      .from("questions")
+      .select("id, text, phase_id")
+      .in("phase_id", phaseIds)
+      .order("phase_id", { ascending: true })
+      .order("id", { ascending: true });
+    if (quErr || !allQuestions?.length)
+      return res.status(404).json({ error: "no_questions" });
+    const qIds = allQuestions.map((x) => x.id);
+    const { data: allOptions, error: oErr } = await sb
+      .from("options")
+      .select("id, text, question_id")
+      .in("question_id", qIds)
+      .order("question_id", { ascending: true })
+      .order("id", { ascending: true });
+    if (oErr) return res.status(500).json({ error: "no_options" });
+    const optionsByQ = new Map();
+    for (const opt of allOptions || []) {
+      const arr = optionsByQ.get(opt.question_id) || [];
+      arr.push(opt.text);
+      optionsByQ.set(opt.question_id, arr);
+    }
+    const compiled = allQuestions
+      .map((qq) => {
+        const texts = (optionsByQ.get(qq.id) || []).slice(0, 4);
+        while (texts.length < 4) texts.push("");
+        return { id: qq.id, text: qq.text, options: texts };
+      })
+      .filter((q) => q.options.length > 0);
+    if (!compiled.length) return res.status(404).json({ error: "no_options" });
+
+    // Initialize quiz state and current question index
+    sess.quiz = {
+      id: quiz.id,
+      title: quiz.title,
+      index: 0,
+      questions: compiled,
+    };
+    sess.question = { text: compiled[0].text, options: compiled[0].options };
+    // Broadcast question to host and audience
+    const state = sessionState(sess);
+    io.to(`host:${sessionId}`).emit("state:update", state);
+    io.to(`aud:${sessionId}`).emit("audience:state", {
+      roundId: sess.roundId,
+      votingOpen: sess.votingOpen,
+      scores: sess.scores,
+      roundAwards: getOrCreateRound(sess).awarded,
+      question: state.question,
+    });
+    return res.json({
+      ok: true,
+      question: state.question,
+      quiz: { id: quiz.id, title: quiz.title },
+      count: compiled.length,
+    });
+  } catch (e) {
+    return res.status(500).json({ error: "quiz_load_failed" });
+  }
+});
+
+// Validate a quiz code without creating a session
+// Body: { code: string }
+app.post("/api/quiz/validate", async (req, res) => {
+  const { code } = req.body || {};
+  if (!code || typeof code !== "string")
+    return res.status(400).json({ error: "bad_code" });
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+    return res.status(503).json({ error: "quiz_source_unavailable" });
+  }
+  let createClient;
+  try {
+    ({ createClient } = require("@supabase/supabase-js"));
+  } catch (e) {
+    return res.status(503).json({ error: "quiz_source_unavailable" });
+  }
+  const sb = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      auth: { persistSession: false },
+    }
+  );
+  try {
+    const { data: quiz, error: qErr } = await sb
+      .from("quizzes")
+      .select("id, slug, title")
+      .eq("code", code)
+      .single();
+    if (qErr || !quiz) return res.status(404).json({ error: "quiz_not_found" });
+    const { data: phases, error: pErr } = await sb
+      .from("phases")
+      .select("id, sort_order")
+      .eq("quiz_id", quiz.id)
+      .order("sort_order", { ascending: true });
+    if (pErr || !phases?.length)
+      return res.status(404).json({ error: "no_phases" });
+    const firstPhase = phases[0];
+    const { data: questions, error: quErr } = await sb
+      .from("questions")
+      .select("id")
+      .eq("phase_id", firstPhase.id)
+      .order("id", { ascending: true })
+      .limit(1);
+    if (quErr || !questions?.length)
+      return res.status(404).json({ error: "no_questions" });
+    const q = questions[0];
+    const { data: options, error: oErr } = await sb
+      .from("options")
+      .select("id")
+      .eq("question_id", q.id)
+      .order("id", { ascending: true })
+      .limit(4);
+    if (oErr || !options?.length)
+      return res.status(404).json({ error: "no_options" });
+    return res.json({ ok: true, quiz: { id: quiz.id, title: quiz.title } });
+  } catch (e) {
+    return res.status(500).json({ error: "quiz_validate_failed" });
+  }
 });
 
 // Assign/toggle a point to a team for the current round (host action)
@@ -377,6 +562,7 @@ io.on("connection", (socket) => {
       votingOpen: sess.votingOpen,
       scores: sess.scores,
       roundAwards: getOrCreateRound(sess).awarded,
+      question: sess.question || null,
     });
   });
 
@@ -387,12 +573,20 @@ io.on("connection", (socket) => {
     sess.roundId += 1;
     sess.votingOpen = false;
     getOrCreateRound(sess); // new empty round
+    // If quiz loaded, advance to next question (bounded)
+    if (sess.quiz && Array.isArray(sess.quiz.questions)) {
+      const max = sess.quiz.questions.length - 1;
+      sess.quiz.index = Math.min(max, (sess.quiz.index || 0) + 1);
+      const cq = sess.quiz.questions[sess.quiz.index];
+      if (cq) sess.question = { text: cq.text, options: cq.options };
+    }
     io.to(`host:${sessionId}`).emit("state:update", sessionState(sess));
     io.to(`aud:${sessionId}`).emit("audience:state", {
       roundId: sess.roundId,
       votingOpen: sess.votingOpen,
       scores: sess.scores,
       roundAwards: getOrCreateRound(sess).awarded,
+      question: sessionState(sess).question,
     });
   });
 
@@ -404,12 +598,19 @@ io.on("connection", (socket) => {
     sess.roundId -= 1;
     sess.votingOpen = false;
     getOrCreateRound(sess); // ensure round exists (it should already)
+    // If quiz loaded, move to previous question (bounded)
+    if (sess.quiz && Array.isArray(sess.quiz.questions)) {
+      sess.quiz.index = Math.max(0, (sess.quiz.index || 0) - 1);
+      const cq = sess.quiz.questions[sess.quiz.index];
+      if (cq) sess.question = { text: cq.text, options: cq.options };
+    }
     io.to(`host:${sessionId}`).emit("state:update", sessionState(sess));
     io.to(`aud:${sessionId}`).emit("audience:state", {
       roundId: sess.roundId,
       votingOpen: sess.votingOpen,
       scores: sess.scores,
       roundAwards: getOrCreateRound(sess).awarded,
+      question: sessionState(sess).question,
     });
   });
 
@@ -439,6 +640,7 @@ io.on("connection", (socket) => {
         scores: sess.scores,
         roundAwards: round.awarded,
         mode: sess.mode,
+        question: sess.question || null,
       };
       ackCb && ackCb(response);
       io.to(`host:${sessionId}`).emit("state:update", sessionState(sess));
@@ -460,6 +662,7 @@ io.on("connection", (socket) => {
       scores: sess.scores,
       roundAwards: getOrCreateRound(sess).awarded,
       mode: sess.mode,
+      question: sess.question || null,
     };
     if (ENABLE_HMAC) payload.sig = signAck(newAck);
     sess.acks.add(newAck);

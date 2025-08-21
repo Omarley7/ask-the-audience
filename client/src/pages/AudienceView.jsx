@@ -12,6 +12,7 @@ export default function AudienceView() {
   const [votingOpen, setVotingOpen] = useState(false);
   const [hasVoted, setHasVoted] = useState(false);
   const [choice, setChoice] = useState(null);
+  const [question, setQuestion] = useState(null); // { text, options: string[4] }
   const [scores, setScores] = useState({ A: 0, B: 0 });
   const [roundAwards, setRoundAwards] = useState({ A: false, B: false });
   // Joining always open while session exists
@@ -44,6 +45,7 @@ export default function AudienceView() {
         setRoundId(resp.roundId);
         setVotingOpen(!!resp.votingOpen);
         setHasVoted(!!resp.hasVoted);
+        if (resp?.question) setQuestion(resp.question);
         if (resp?.scores) setScores(resp.scores);
         if (resp?.roundAwards) setRoundAwards(resp.roundAwards);
         if (__DEBUG__)
@@ -89,6 +91,7 @@ export default function AudienceView() {
       }
       if (msg?.scores) setScores(msg.scores);
       if (msg?.roundAwards) setRoundAwards(msg.roundAwards);
+      if (msg?.question) setQuestion(msg.question);
     }
     socket.on("audience:state", onAudState);
     return () => socket.off("audience:state", onAudState);
@@ -135,6 +138,12 @@ export default function AudienceView() {
       <h2 className="mb-2 flex items-center gap-2 text-xl font-semibold">
         Vælg dit svar <span className="badge">Runde #{roundId}</span>
       </h2>
+      {question?.text && (
+        <div className="mb-3">
+          <div className="text-gold text-base font-semibold">Spørgsmål</div>
+          <p className="mt-1 text-sm text-gray-200">{question.text}</p>
+        </div>
+      )}
       <div className="mb-2 flex items-center gap-2 text-sm text-gray-300">
         <span className="badge">Team A: {scores.A ?? 0}</span>
         <span className="badge">Team B: {scores.B ?? 0}</span>
@@ -151,24 +160,25 @@ export default function AudienceView() {
         )}
       </div>
       {hasVoted ? (
-        <p className="mb-2 font-bold text-gold">
+        <p className="text-gold mb-2 font-bold">
           Du valgte <b>{choice ?? "…"}</b>. Tak! Din stemme er låst for denne
           runde ✨
         </p>
       ) : !votingOpen ? (
-        <p className="mb-2 font-bold text-gold">
+        <p className="text-gold mb-2 font-bold">
           Afstemningen er ikke åben endnu
         </p>
       ) : (
-        <p className="mb-2 font-bold text-gold">Afstemningen er åben 💕</p>
+        <p className="text-gold mb-2 font-bold">Afstemningen er åben 💕</p>
       )}
       <div
         className="grid grid-cols-2 gap-4 max-sm:grid-cols-1"
         role="group"
         aria-label="Answer options"
       >
-        {["A", "B", "C", "D"].map((k) => {
+        {["A", "B", "C", "D"].map((k, idx) => {
           const isChosen = hasVoted && choice === k;
+          const label = question?.options?.[idx];
           return (
             <button
               key={k}
@@ -186,7 +196,10 @@ export default function AudienceView() {
               }
               accessKey={k.toLowerCase()}
             >
-              {k}
+              <div className="text-2xl font-bold">{k}</div>
+              {label ? (
+                <div className="mt-1 text-sm text-gray-200">{label}</div>
+              ) : null}
             </button>
           );
         })}

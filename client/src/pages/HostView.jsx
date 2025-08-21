@@ -14,6 +14,7 @@ export default function HostView() {
     tally: { A: 0, B: 0, C: 0, D: 0 },
     scores: { A: 0, B: 0 },
     roundAwards: { A: false, B: false },
+    question: null,
   });
   // Joining always allowed once session exists
   const activeId = sessionId || sess.sessionId; // use this for emits / links
@@ -179,6 +180,14 @@ export default function HostView() {
             Næste
           </button>
         </div>
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-gray-400">
+          <span className="badge">Runde #{state.roundId}</span>
+          {typeof state.audienceCount === "number" && (
+            <span className="badge" title="Aktive deltagere">
+              👥 {state.audienceCount}
+            </span>
+          )}
+        </div>
         <div className="mb-2 flex items-center gap-2 text-sm text-gray-300">
           <span className="badge">Team A: {state.scores?.A ?? 0}</span>
           <span className="badge">Team B: {state.scores?.B ?? 0}</span>
@@ -247,14 +256,20 @@ export default function HostView() {
             </button>
           )}
         </div>
-        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-gray-400">
-          <span className="badge">Runde #{state.roundId}</span>
-          {typeof state.audienceCount === "number" && (
-            <span className="badge" title="Aktive deltagere">
-              👥 {state.audienceCount}
-            </span>
-          )}
-        </div>
+        {state.question?.text && (
+          <div className="panel mb-4">
+            <div className="text-gold font-semibold">Aktuelt spørgsmål</div>
+            <p className="mt-1 text-sm text-gray-200">{state.question.text}</p>
+            <ul className="mt-2 list-inside list-disc text-sm text-gray-300">
+              {["A", "B", "C", "D"].map((k, idx) => (
+                <li key={k}>
+                  <span className="font-semibold">{k}:</span>{" "}
+                  {state.question?.options?.[idx] || ""}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="panel flex flex-col items-center gap-4">
           <div className="flex flex-nowrap items-center gap-4">
             <div className="copy text-base">

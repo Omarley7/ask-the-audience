@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import App from "./App.jsx";
 import AudienceView from "./pages/AudienceView.jsx";
+import HostSetup from "./pages/HostSetup.jsx";
 import HostView from "./pages/HostView.jsx";
 import Landing from "./pages/Landing.jsx";
 import SimpleAudienceView from "./pages/SimpleAudienceView.jsx";
@@ -16,6 +17,7 @@ createRoot(document.getElementById("root")).render(
         <Route element={<App />}>
           <Route path="/" element={<Landing />} />
           <Route path="/host" element={<HostView />} />
+          <Route path="/host/setup" element={<HostSetup />} />
           <Route path="/host/:sessionId" element={<HostView />} />
           <Route path="/join/:sessionId" element={<AudienceView />} />
           <Route path="/simple/host" element={<SimpleHostView />} />

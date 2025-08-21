@@ -7,22 +7,8 @@ export default function Landing() {
   const [code, setCode] = useState("");
   const [creating, setCreating] = useState(false);
 
-  async function createSessionQuiz() {
-    if (creating) return;
-    setCreating(true);
-    try {
-      const res = await fetch(`${SERVER_URL}/api/session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "quiz" }),
-      });
-      const data = await res.json();
-      nav(`/host/${data.sessionId}`);
-    } catch (e) {
-      alert("Kunne ikke oprette session");
-    } finally {
-      setCreating(false);
-    }
+  function goToHostSetup() {
+    nav(`/host/setup`);
   }
   async function createSessionSimple() {
     if (creating) return;
@@ -74,11 +60,11 @@ export default function Landing() {
             {creating ? "Opretter…" : "Bliv vært"}
           </button>
           <button
-            onClick={createSessionQuiz}
+            onClick={goToHostSetup}
             disabled={creating}
             className="secondary py-4 text-lg disabled:opacity-50"
           >
-            {creating ? "Opretter…" : "Start quiz"}
+            Start quiz
           </button>
           <form
             onSubmit={joinByCode}
