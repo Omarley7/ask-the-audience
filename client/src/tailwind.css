@@ -25,7 +25,7 @@
     /* Vibrant neon green glow */
     border-color: #20ff91 !important;
     box-shadow: 0 0 0 2px #20ff91, 0 0 18px 4px #20ff91,
-      0 0 42px 10px rgba(32, 255, 145, 0.65);
+      0 0 42px 10px rgba(32, 255, 145, 0.65) !important;
     transition: box-shadow 250ms ease, border-color 250ms ease;
   }
   .badge {

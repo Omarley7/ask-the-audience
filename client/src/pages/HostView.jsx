@@ -191,15 +191,6 @@ export default function HostView() {
           <button className="secondary bg-green-900" onClick={nextRound}>
             Næste
           </button>
-          {hasCorrect && !state?.reveal?.show && (
-            <button
-              className="secondary bg-amber-900"
-              onClick={revealNow}
-              title="Fremhæv de korrekte svar på vært og publikum"
-            >
-              Reveal
-            </button>
-          )}
         </div>
         <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-gray-400">
           <span className="badge">Runde #{state.roundId}</span>
@@ -311,6 +302,15 @@ export default function HostView() {
                 );
               })}
             </ul>
+            {hasCorrect && !state?.reveal?.show && (
+              <button
+                className="secondary bg-amber-900 p-2 text-sm"
+                onClick={revealNow}
+                title="Fremhæv de korrekte svar på vært og publikum"
+              >
+                Reveal
+              </button>
+            )}
             {state.question?.note ? (
               <div className="mt-3 rounded border border-gray-700 bg-[#0f1330] p-2 text-xs text-gray-300">
                 <div className="mb-1 font-semibold text-gray-200">Note</div>

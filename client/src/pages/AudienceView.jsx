@@ -272,12 +272,16 @@ export default function AudienceView() {
           const hasAudio = opt && typeof opt === "object" && !!opt.audioUri;
           if (hasAudio) {
             return (
-              <div key={k} className="flex">
+              <div
+                key={k}
+                className={
+                  "flex" + (isCorrectLetter(k) ? " open-glow rounded-xl" : "")
+                }
+              >
                 <button
                   className={
                     "option transition flex-1 border-r-0 rounded-r-none " +
-                    (isChosen ? "ring-4 ring-[#ffe9a9] scale-[1.02]" : "") +
-                    (isCorrectLetter(k) ? " ring-2 ring-emerald-400" : "")
+                    (isChosen ? "ring-4 ring-[#ffe9a9] scale-[1.02]" : "")
                   }
                   onClick={() => cast(k)}
                   disabled={disabled}
@@ -298,8 +302,7 @@ export default function AudienceView() {
                 </button>
                 <button
                   className={
-                    "option transition flex-1 border-l-0 rounded-l-none" +
-                    (isCorrectLetter(k) ? " ring-2 ring-emerald-400" : "")
+                    "option flex-1 rounded-l-none border-l-0 transition"
                   }
                   onClick={() => preview(origIdx)}
                   type="button"
@@ -321,7 +324,7 @@ export default function AudienceView() {
               className={
                 "option transition " +
                 (isChosen ? "ring-4 ring-[#ffe9a9] scale-[1.02]" : "") +
-                (isCorrectLetter(k) ? " ring-2 ring-emerald-400" : "")
+                (isCorrectLetter(k) ? " open-glow rounded-xl" : "")
               }
               onClick={() => cast(k)}
               disabled={disabled}
