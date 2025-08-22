@@ -493,7 +493,10 @@ app.get("/api/deezer/track/:id", async (req, res) => {
     const r = await fetch(
       `https://api.deezer.com/track/${encodeURIComponent(id)}`
     );
-    if (!r.ok) return res.status(502).json({ error: "deezer_unavailable" });
+    if (!r.ok) {
+      console.log("Deezer API error:", r.statusText);
+      return res.status(502).json({ error: "deezer_unavailable" });
+    }
     const j = await r.json();
     return res.json({
       preview: j.preview || null,
