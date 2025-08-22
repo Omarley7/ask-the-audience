@@ -335,6 +335,10 @@ app.post("/api/session/:sessionId/reset", (req, res) => {
   round.byAck = {};
   round.tally = emptyTally();
   round.resetSeq = (round.resetSeq || 0) + 1;
+  // Also clear any reveal on the current question
+  if (sess.quiz) {
+    sess.quiz.revealedIndex = null;
+  }
   // Optionally close voting to avoid accidental immediate votes; host can reopen
   // Keep current votingOpen state as-is to match UI expectations
 
