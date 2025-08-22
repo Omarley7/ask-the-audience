@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { __DEBUG__, SERVER_URL, socket } from "../socket.js";
+import { __DEBUG__, socket } from "../socket.js";
 
 function ackKey(sessionId) {
   return `ata:${sessionId}:ack`;
@@ -156,11 +156,38 @@ export default function AudienceView() {
         setNowPlaying(null);
         return;
       }
-      const r = await fetch(
-        `${SERVER_URL}/api/deezer/track/${encodeURIComponent(id)}`
-      );
-      const j = await r.json();
-      if (!r.ok || !j.preview) return alert("Preview ikke tilgængelig");
+      // Fetch directly from Deezer with JSONP to avoid CORS issues
+      const j = await new Promise((resolve, reject) => {
+        const cbName = `dzCb_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+        const script = document.createElement("script");
+        const timeout = setTimeout(() => {
+          cleanup();
+          reject(new Error("deezer_timeout"));
+        }, 10000);
+        function cleanup() {
+          try {
+            delete window[cbName];
+          } catch {
+            throw new Error("deezer_cleanup_error");
+          }
+          if (script && script.parentNode)
+            script.parentNode.removeChild(script);
+          clearTimeout(timeout);
+        }
+        window[cbName] = (data) => {
+          cleanup();
+          resolve(data);
+        };
+        script.onerror = () => {
+          cleanup();
+          reject(new Error("deezer_script_error"));
+        };
+        script.src = `https://api.deezer.com/track/${encodeURIComponent(
+          id
+        )}?output=jsonp&callback=${cbName}`;
+        document.body.appendChild(script);
+      });
+      if (!j || j.error || !j.preview) return alert("Preview ikke tilgængelig");
       try {
         audioObj?.pause?.();
       } catch (e) {

@@ -485,28 +485,7 @@ app.post("/api/session/:sessionId/loadQuiz", async (req, res) => {
   }
 });
 
-// Simple server-side Deezer proxy to get preview URL (avoids CORS issues)
-app.get("/api/deezer/track/:id", async (req, res) => {
-  const { id } = req.params;
-  if (!id) return res.status(400).json({ error: "bad_id" });
-  try {
-    const r = await fetch(
-      `https://api.deezer.com/track/${encodeURIComponent(id)}`
-    );
-    if (!r.ok) {
-      console.log("Deezer API error:", r.statusText);
-      return res.status(502).json({ error: "deezer_unavailable" });
-    }
-    const j = await r.json();
-    return res.json({
-      preview: j.preview || null,
-      title: j.title || null,
-      artist: j.artist?.name || null,
-    });
-  } catch (e) {
-    return res.status(500).json({ error: "deezer_failed" });
-  }
-});
+// Deezer preview is fetched client-side via JSONP now; proxy removed to avoid CORS/availability issues.
 
 // Validate a quiz code without creating a session
 // Body: { code: string }
