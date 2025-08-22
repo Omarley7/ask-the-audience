@@ -15,6 +15,7 @@ export default function HostView() {
     scores: { A: 0, B: 0 },
     roundAwards: { A: false, B: false },
     question: null,
+    reveal: { show: false, correctLetters: [] },
   });
   // Joining always allowed once session exists
   const activeId = sessionId || sess.sessionId; // use this for emits / links
@@ -82,6 +83,12 @@ export default function HostView() {
     if (__DEBUG__)
       console.log("[host] prevRound emit", { sessionId: activeId });
     socket.emit("session:prevRound", { sessionId: activeId });
+  }
+
+  function revealNow() {
+    if (!activeId) return;
+    if (__DEBUG__) console.log("[host] reveal emit", { sessionId: activeId });
+    socket.emit("session:reveal", { sessionId: activeId });
   }
 
   async function resetCurrentRound() {
@@ -152,6 +159,11 @@ export default function HostView() {
   }
 
   const joinHref = `${location.origin}/join/${activeId ?? ""}`;
+  const hasCorrect = Array.isArray(state?.question?.options)
+    ? state.question.options.some(
+        (o) => o && typeof o === "object" && o.isCorrect
+      )
+    : false;
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -179,6 +191,15 @@ export default function HostView() {
           <button className="secondary bg-green-900" onClick={nextRound}>
             Næste
           </button>
+          {hasCorrect && !state?.reveal?.show && (
+            <button
+              className="secondary bg-amber-900"
+              onClick={revealNow}
+              title="Fremhæv de korrekte svar på vært og publikum"
+            >
+              Reveal
+            </button>
+          )}
         </div>
         <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-gray-400">
           <span className="badge">Runde #{state.roundId}</span>
@@ -258,16 +279,46 @@ export default function HostView() {
         </div>
         {state.question?.text && (
           <div className="panel mb-4">
-            <div className="text-gold font-semibold">Aktuelt spørgsmål</div>
+            <div className="text-gold font-semibold">
+              {state.question?.phaseTitle ? (
+                <span>
+                  {state.question.phaseTitle}
+                  <span className="opacity-70"> · Aktuelt spørgsmål</span>
+                </span>
+              ) : (
+                "Aktuelt spørgsmål"
+              )}
+            </div>
             <p className="mt-1 text-sm text-gray-200">{state.question.text}</p>
             <ul className="mt-2 list-inside list-disc text-sm text-gray-300">
-              {["A", "B", "C", "D"].map((k, idx) => (
-                <li key={k}>
-                  <span className="font-semibold">{k}:</span>{" "}
-                  {state.question?.options?.[idx] || ""}
-                </li>
-              ))}
+              {["A", "B", "C", "D"].map((k, idx) => {
+                const opt = state.question?.options?.[idx];
+                const text = typeof opt === "string" ? opt : opt?.text;
+                const isCorrect = !!(
+                  state?.reveal?.show &&
+                  state?.reveal?.correctLetters?.includes(k)
+                );
+                return (
+                  <li
+                    key={k}
+                    className={
+                      isCorrect ? "font-semibold text-emerald-400" : undefined
+                    }
+                  >
+                    <span className="font-semibold">{k}:</span> {text || ""}
+                    {isCorrect ? <span className="ml-2">✅</span> : null}
+                  </li>
+                );
+              })}
             </ul>
+            {state.question?.note ? (
+              <div className="mt-3 rounded border border-gray-700 bg-[#0f1330] p-2 text-xs text-gray-300">
+                <div className="mb-1 font-semibold text-gray-200">Note</div>
+                <div className="whitespace-pre-wrap leading-snug">
+                  {state.question.note}
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
         <div className="panel flex flex-col items-center gap-4">

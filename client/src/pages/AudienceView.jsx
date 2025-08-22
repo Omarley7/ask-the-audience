@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { __DEBUG__, socket } from "../socket.js";
+import { __DEBUG__, SERVER_URL, socket } from "../socket.js";
 
 function ackKey(sessionId) {
   return `ata:${sessionId}:ack`;
@@ -12,9 +12,14 @@ export default function AudienceView() {
   const [votingOpen, setVotingOpen] = useState(false);
   const [hasVoted, setHasVoted] = useState(false);
   const [choice, setChoice] = useState(null);
-  const [question, setQuestion] = useState(null); // { text, options: string[4] }
+  const [question, setQuestion] = useState(null); // { text, options: Array<{text:string, audioUri?:string|null}> }
   const [scores, setScores] = useState({ A: 0, B: 0 });
   const [roundAwards, setRoundAwards] = useState({ A: false, B: false });
+  const [nowPlaying, setNowPlaying] = useState(null); // idx of option playing
+  const [audioObj, setAudioObj] = useState(null);
+  const [reveal, setReveal] = useState({ show: false, correctLetters: [] });
+  const letters = ["A", "B", "C", "D"]; // canonical option letters
+  const [order, setOrder] = useState([0, 1, 2, 3]); // display order -> original index
   // Joining always open while session exists
 
   const storedAck = useMemo(
@@ -46,6 +51,7 @@ export default function AudienceView() {
         setVotingOpen(!!resp.votingOpen);
         setHasVoted(!!resp.hasVoted);
         if (resp?.question) setQuestion(resp.question);
+        if (resp?.reveal) setReveal(resp.reveal);
         if (resp?.scores) setScores(resp.scores);
         if (resp?.roundAwards) setRoundAwards(resp.roundAwards);
         if (__DEBUG__)
@@ -92,6 +98,7 @@ export default function AudienceView() {
       if (msg?.scores) setScores(msg.scores);
       if (msg?.roundAwards) setRoundAwards(msg.roundAwards);
       if (msg?.question) setQuestion(msg.question);
+      if (msg?.reveal) setReveal(msg.reveal);
     }
     socket.on("audience:state", onAudState);
     return () => socket.off("audience:state", onAudState);
@@ -99,6 +106,76 @@ export default function AudienceView() {
 
   // Reset lock on round change via soft polling from host updates? Not required for audience.
   // Audience does not receive live round updates; their state gets refreshed on rejoin.
+
+  // Cleanup audio when leaving page
+  useEffect(() => {
+    return () => {
+      try {
+        audioObj?.pause?.();
+      } catch (e) {
+        /* ignore */
+      }
+    };
+  }, [audioObj]);
+
+  // Shuffle displayed option order whenever the question changes
+  useEffect(() => {
+    if (!question) return;
+    const idxs = [0, 1, 2, 3];
+    for (let i = idxs.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [idxs[i], idxs[j]] = [idxs[j], idxs[i]];
+    }
+    setOrder(idxs);
+    // stop any playing audio on question change
+    try {
+      audioObj?.pause?.();
+    } catch (e) {
+      /* ignore */
+    }
+    setNowPlaying(null);
+  }, [question?.text]);
+
+  function extractDeezerId(uri) {
+    if (!uri) return null;
+    // Accept numeric id, deezer:track:ID, or URLs like https://www.deezer.com/track/ID
+    const s = String(uri);
+    const m = s.match(/(\d{3,})/); // first long number
+    return m ? m[1] : null;
+  }
+
+  async function preview(idx) {
+    try {
+      const opt = question?.options?.[idx];
+      const audioUri = typeof opt === "object" ? opt?.audioUri : null;
+      const id = extractDeezerId(audioUri);
+      if (!id) return alert("Ingen preview tilgængelig");
+      // Toggle pause if same track is playing
+      if (nowPlaying === idx && audioObj && !audioObj.paused) {
+        audioObj.pause();
+        setNowPlaying(null);
+        return;
+      }
+      const r = await fetch(
+        `${SERVER_URL}/api/deezer/track/${encodeURIComponent(id)}`
+      );
+      const j = await r.json();
+      if (!r.ok || !j.preview) return alert("Preview ikke tilgængelig");
+      try {
+        audioObj?.pause?.();
+      } catch (e) {
+        /* ignore */
+      }
+      const a = new Audio(j.preview);
+      a.onended = () => setNowPlaying(null);
+      await a.play();
+      setAudioObj(a);
+      setNowPlaying(idx);
+    } catch (e) {
+      if (__DEBUG__) console.error("[aud] preview error", e);
+      alert("Kunne ikke afspille preview");
+    }
+  }
 
   function cast(option) {
     if (!votingOpen) {
@@ -132,16 +209,27 @@ export default function AudienceView() {
   }
 
   const disabled = !votingOpen || hasVoted;
+  const isCorrectLetter = (k) =>
+    reveal?.show &&
+    Array.isArray(reveal?.correctLetters) &&
+    reveal.correctLetters.includes(k);
+  const hideLetters = !!(
+    question?.phaseTitle ||
+    (question?.options || []).some((o) => typeof o === "object")
+  );
 
   return (
     <div className="card">
       <h2 className="mb-2 flex items-center gap-2 text-xl font-semibold">
-        Vælg dit svar <span className="badge">Runde #{roundId}</span>
+        {question?.phaseTitle || "Vælg dit svar"}{" "}
       </h2>
       {question?.text && (
         <div className="mb-3">
-          <div className="text-gold text-base font-semibold">Spørgsmål</div>
-          <p className="mt-1 text-sm text-gray-200">{question.text}</p>
+          <div className="flex flex-row justify-between">
+            <div className="text-gold text-base font-semibold">Spørgsmål</div>
+            <span className="badge">Runde #{roundId}</span>
+          </div>
+          <p className="mt-1 text-base text-gray-100">{question.text}</p>
         </div>
       )}
       <div className="mb-2 flex items-center gap-2 text-sm text-gray-300">
@@ -176,15 +264,64 @@ export default function AudienceView() {
         role="group"
         aria-label="Answer options"
       >
-        {["A", "B", "C", "D"].map((k, idx) => {
+        {order.map((origIdx) => {
+          const k = letters[origIdx];
           const isChosen = hasVoted && choice === k;
-          const label = question?.options?.[idx];
+          const opt = question?.options?.[origIdx];
+          const text = typeof opt === "string" ? opt : opt?.text;
+          const hasAudio = opt && typeof opt === "object" && !!opt.audioUri;
+          if (hasAudio) {
+            return (
+              <div key={k} className="flex">
+                <button
+                  className={
+                    "option transition flex-1 border-r-0 rounded-r-none " +
+                    (isChosen ? "ring-4 ring-[#ffe9a9] scale-[1.02]" : "") +
+                    (isCorrectLetter(k) ? " ring-2 ring-emerald-400" : "")
+                  }
+                  onClick={() => cast(k)}
+                  disabled={disabled}
+                  aria-disabled={disabled}
+                  title={
+                    disabled
+                      ? "Afventer åben afstemning eller du har allerede stemt"
+                      : `Vælg ${k}`
+                  }
+                  accessKey={k.toLowerCase()}
+                >
+                  {!hideLetters && (
+                    <div className="text-2xl font-bold">{k}</div>
+                  )}
+                  {text ? (
+                    <div className="mt-1 text-base font-medium">{text}</div>
+                  ) : null}
+                </button>
+                <button
+                  className={
+                    "option transition flex-1 border-l-0 rounded-l-none" +
+                    (isCorrectLetter(k) ? " ring-2 ring-emerald-400" : "")
+                  }
+                  onClick={() => preview(origIdx)}
+                  type="button"
+                  title="Afspil preview"
+                >
+                  <div className="text-2xl font-bold">🎵</div>
+                  <div className="mt-1 text-base font-medium">
+                    {nowPlaying === origIdx && audioObj && !audioObj.paused
+                      ? "Pause"
+                      : "Preview"}
+                  </div>
+                </button>
+              </div>
+            );
+          }
           return (
             <button
               key={k}
               className={
                 "option transition " +
-                (isChosen ? "ring-4 ring-[#ffe9a9] scale-[1.02]" : "")
+                (isChosen ? "ring-4 ring-[#ffe9a9] scale-[1.02]" : "") +
+                (isCorrectLetter(k) ? " ring-2 ring-emerald-400" : "")
               }
               onClick={() => cast(k)}
               disabled={disabled}
@@ -196,9 +333,9 @@ export default function AudienceView() {
               }
               accessKey={k.toLowerCase()}
             >
-              <div className="text-2xl font-bold">{k}</div>
-              {label ? (
-                <div className="mt-1 text-sm text-gray-200">{label}</div>
+              {!hideLetters && <div className="text-2xl font-bold">{k}</div>}
+              {text ? (
+                <div className="mt-1 text-base font-medium">{text}</div>
               ) : null}
             </button>
           );

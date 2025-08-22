@@ -134,12 +134,13 @@ const io = new Server(server, {
  *    resetSeq?: number
  *  }>,
  *  scores: {A:number;B:number},
- *  question?: { text: string, options: string[] } | null,
+ *  question?: { text: string, options: any, phaseTitle?: string, note?: string|null } | null,
  *  quiz?: {
  *    id: number,
  *    title?: string,
  *    index: number, // 0-based question index
- *    questions: Array<{ id: number, text: string, options: string[] }>
+ *    revealedIndex?: number|null,
+ *    questions: Array<{ id: number, text: string, phaseId: number, phaseTitle?: string, note?: string|null, options: Array<{ text: string, audioUri?: string|null, isCorrect?: boolean }> }>
  *  } | null,
  *  qrDataUrl?: string
  * }} Session */
@@ -204,7 +205,29 @@ function sessionState(sess) {
       Math.min(sess.quiz.index || 0, sess.quiz.questions.length - 1)
     );
     const cq = sess.quiz.questions[idx];
-    if (cq) q = { text: cq.text, options: cq.options };
+    if (cq)
+      q = {
+        text: cq.text,
+        options: cq.options,
+        phaseTitle: cq.phaseTitle,
+        note: cq.note ?? null,
+      };
+  }
+  // Compute reveal state for current question
+  let reveal = { show: false, correctLetters: [] };
+  if (sess.quiz && Array.isArray(sess.quiz.questions)) {
+    const isSame = (sess.quiz.revealedIndex ?? -1) === (sess.quiz.index ?? -2);
+    if (isSame) {
+      const cq = sess.quiz.questions[sess.quiz.index];
+      if (cq && Array.isArray(cq.options)) {
+        const letters = ["A", "B", "C", "D"];
+        const arr = [];
+        cq.options.forEach((o, i) => {
+          if (o && o.isCorrect) arr.push(letters[i]);
+        });
+        reveal = { show: true, correctLetters: arr };
+      }
+    }
   }
   return {
     roundId,
@@ -214,6 +237,7 @@ function sessionState(sess) {
     scores: sess.scores || { A: 0, B: 0 },
     roundAwards: round.awarded || { A: false, B: false },
     question: q,
+    reveal,
   };
 }
 
@@ -324,6 +348,7 @@ app.post("/api/session/:sessionId/reset", (req, res) => {
     scores: sess.scores,
     roundAwards: round.awarded,
     question: sess.question || null,
+    reveal: sessionState(sess).reveal,
   });
   res.json({ ok: true, roundId: sess.roundId, tally: round.tally });
 });
@@ -374,7 +399,7 @@ app.post("/api/session/:sessionId/loadQuiz", async (req, res) => {
     const phaseIds = phases.map((p) => p.id);
     const { data: allQuestions, error: quErr } = await sb
       .from("questions")
-      .select("id, text, phase_id")
+      .select("id, text, phase_id, note")
       .in("phase_id", phaseIds)
       .order("phase_id", { ascending: true })
       .order("id", { ascending: true });
@@ -383,7 +408,7 @@ app.post("/api/session/:sessionId/loadQuiz", async (req, res) => {
     const qIds = allQuestions.map((x) => x.id);
     const { data: allOptions, error: oErr } = await sb
       .from("options")
-      .select("id, text, question_id")
+      .select("id, text, question_id, audio_uri, is_correct")
       .in("question_id", qIds)
       .order("question_id", { ascending: true })
       .order("id", { ascending: true });
@@ -391,14 +416,31 @@ app.post("/api/session/:sessionId/loadQuiz", async (req, res) => {
     const optionsByQ = new Map();
     for (const opt of allOptions || []) {
       const arr = optionsByQ.get(opt.question_id) || [];
-      arr.push(opt.text);
+      arr.push({ text: opt.text, audioUri: opt.audio_uri || null });
       optionsByQ.set(opt.question_id, arr);
     }
+    const phaseTitleById = new Map();
+    for (const p of phases) phaseTitleById.set(p.id, p.title);
     const compiled = allQuestions
       .map((qq) => {
-        const texts = (optionsByQ.get(qq.id) || []).slice(0, 4);
-        while (texts.length < 4) texts.push("");
-        return { id: qq.id, text: qq.text, options: texts };
+        const raw = (optionsByQ.get(qq.id) || []).slice(0, 4);
+        while (raw.length < 4)
+          raw.push({ text: "", audioUri: null, isCorrect: false });
+        const opts = raw.map((o, i) => ({
+          text: o.text,
+          audioUri: o.audioUri,
+          isCorrect: !!allOptions?.find(
+            (oo) => oo.question_id === qq.id && oo.text === o.text
+          )?.is_correct,
+        }));
+        return {
+          id: qq.id,
+          text: qq.text,
+          phaseId: qq.phase_id,
+          phaseTitle: phaseTitleById.get(qq.phase_id) || undefined,
+          note: qq.note ?? null,
+          options: opts,
+        };
       })
       .filter((q) => q.options.length > 0);
     if (!compiled.length) return res.status(404).json({ error: "no_options" });
@@ -408,9 +450,15 @@ app.post("/api/session/:sessionId/loadQuiz", async (req, res) => {
       id: quiz.id,
       title: quiz.title,
       index: 0,
+      revealedIndex: null,
       questions: compiled,
     };
-    sess.question = { text: compiled[0].text, options: compiled[0].options };
+    sess.question = {
+      text: compiled[0].text,
+      options: compiled[0].options,
+      phaseTitle: compiled[0].phaseTitle,
+      note: compiled[0].note,
+    };
     // Broadcast question to host and audience
     const state = sessionState(sess);
     io.to(`host:${sessionId}`).emit("state:update", state);
@@ -420,6 +468,7 @@ app.post("/api/session/:sessionId/loadQuiz", async (req, res) => {
       scores: sess.scores,
       roundAwards: getOrCreateRound(sess).awarded,
       question: state.question,
+      reveal: state.reveal,
     });
     return res.json({
       ok: true,
@@ -429,6 +478,26 @@ app.post("/api/session/:sessionId/loadQuiz", async (req, res) => {
     });
   } catch (e) {
     return res.status(500).json({ error: "quiz_load_failed" });
+  }
+});
+
+// Simple server-side Deezer proxy to get preview URL (avoids CORS issues)
+app.get("/api/deezer/track/:id", async (req, res) => {
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ error: "bad_id" });
+  try {
+    const r = await fetch(
+      `https://api.deezer.com/track/${encodeURIComponent(id)}`
+    );
+    if (!r.ok) return res.status(502).json({ error: "deezer_unavailable" });
+    const j = await r.json();
+    return res.json({
+      preview: j.preview || null,
+      title: j.title || null,
+      artist: j.artist?.name || null,
+    });
+  } catch (e) {
+    return res.status(500).json({ error: "deezer_failed" });
   }
 });
 
@@ -563,6 +632,7 @@ io.on("connection", (socket) => {
       scores: sess.scores,
       roundAwards: getOrCreateRound(sess).awarded,
       question: sess.question || null,
+      reveal: sessionState(sess).reveal,
     });
   });
 
@@ -577,8 +647,15 @@ io.on("connection", (socket) => {
     if (sess.quiz && Array.isArray(sess.quiz.questions)) {
       const max = sess.quiz.questions.length - 1;
       sess.quiz.index = Math.min(max, (sess.quiz.index || 0) + 1);
+      sess.quiz.revealedIndex = null; // reset reveal on next
       const cq = sess.quiz.questions[sess.quiz.index];
-      if (cq) sess.question = { text: cq.text, options: cq.options };
+      if (cq)
+        sess.question = {
+          text: cq.text,
+          options: cq.options,
+          phaseTitle: cq.phaseTitle,
+          note: cq.note,
+        };
     }
     io.to(`host:${sessionId}`).emit("state:update", sessionState(sess));
     io.to(`aud:${sessionId}`).emit("audience:state", {
@@ -587,6 +664,7 @@ io.on("connection", (socket) => {
       scores: sess.scores,
       roundAwards: getOrCreateRound(sess).awarded,
       question: sessionState(sess).question,
+      reveal: sessionState(sess).reveal,
     });
   });
 
@@ -601,8 +679,15 @@ io.on("connection", (socket) => {
     // If quiz loaded, move to previous question (bounded)
     if (sess.quiz && Array.isArray(sess.quiz.questions)) {
       sess.quiz.index = Math.max(0, (sess.quiz.index || 0) - 1);
+      sess.quiz.revealedIndex = null; // reset reveal on prev
       const cq = sess.quiz.questions[sess.quiz.index];
-      if (cq) sess.question = { text: cq.text, options: cq.options };
+      if (cq)
+        sess.question = {
+          text: cq.text,
+          options: cq.options,
+          phaseTitle: cq.phaseTitle,
+          note: cq.note,
+        };
     }
     io.to(`host:${sessionId}`).emit("state:update", sessionState(sess));
     io.to(`aud:${sessionId}`).emit("audience:state", {
@@ -611,6 +696,25 @@ io.on("connection", (socket) => {
       scores: sess.scores,
       roundAwards: getOrCreateRound(sess).awarded,
       question: sessionState(sess).question,
+      reveal: sessionState(sess).reveal,
+    });
+  });
+
+  // Host reveals the correct answer(s) for the current question
+  socket.on("session:reveal", ({ sessionId }) => {
+    dbg(`[session:reveal] session=${sessionId}`);
+    const sess = sessions.get(sessionId);
+    if (!sess || !sess.quiz) return;
+    sess.quiz.revealedIndex = sess.quiz.index;
+    const state = sessionState(sess);
+    io.to(`host:${sessionId}`).emit("state:update", state);
+    io.to(`aud:${sessionId}`).emit("audience:state", {
+      roundId: sess.roundId,
+      votingOpen: sess.votingOpen,
+      scores: sess.scores,
+      roundAwards: getOrCreateRound(sess).awarded,
+      question: state.question,
+      reveal: state.reveal,
     });
   });
 
@@ -641,6 +745,7 @@ io.on("connection", (socket) => {
         roundAwards: round.awarded,
         mode: sess.mode,
         question: sess.question || null,
+        reveal: sessionState(sess).reveal,
       };
       ackCb && ackCb(response);
       io.to(`host:${sessionId}`).emit("state:update", sessionState(sess));
@@ -663,6 +768,7 @@ io.on("connection", (socket) => {
       roundAwards: getOrCreateRound(sess).awarded,
       mode: sess.mode,
       question: sess.question || null,
+      reveal: sessionState(sess).reveal,
     };
     if (ENABLE_HMAC) payload.sig = signAck(newAck);
     sess.acks.add(newAck);
